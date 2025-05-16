@@ -1,5 +1,5 @@
 {
-  "name": "bell_admin",
+  "name": "python222_vue3_admin3",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,10 +7,19 @@
     "build": "vue-cli-service build"
   },
   "dependencies": {
+    "axios": "^1.7.2",
     "core-js": "^3.8.3",
+    "element-plus": "^2.2.6",
+    "sass": "^1.52.3",
+    "sass-loader": "^13.0.0",
     "vue": "^3.2.13",
     "vue-router": "^4.0.3",
-    "vuex": "^4.0.0"
+    "vuex": "^4.0.0",
+    "webpack": "^5.73.0",
+    "svg-sprite-loader": "^6.0.11",
+    "qs": "^6.10.5",
+    "js-cookie": "^3.0.1",
+    "jsencrypt": "^3.2.1"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "~5.0.0",
