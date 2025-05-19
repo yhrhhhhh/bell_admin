@@ -7,7 +7,20 @@
           <el-option v-for="item in statusOptions" :key="item.key" :label="item.label" :value="item.key"/>
         </el-select>
         <el-button class="filter-item" type="primary" icon="el-icon-search" @click="handleFilter">搜索</el-button>
-        <el-button class="filter-item" type="success" icon="el-icon-refresh" @click="handleBatchControl">批量操作</el-button>
+        
+        <!-- 修改批量操作按钮为下拉菜单 -->
+        <el-dropdown class="filter-item" @command="handleBatchCommand">
+          <el-button type="primary">
+            批量操作
+            <i class="el-icon-arrow-down el-icon--right"></i>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="batchDelete">批量删除</el-dropdown-item>
+              <el-dropdown-item command="batchControl">批量控制</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
       <el-switch
         v-model="isDarkTheme"
@@ -58,19 +71,30 @@
           <el-col :span="8" v-for="device in deviceList" :key="device.id">
             <el-card class="device-card" :class="{'running': device.status === 'running'}">
               <div class="device-header">
+                <!-- 添加复选框 -->
+                <el-checkbox 
+                  v-model="device.selected"
+                  @change="handleDeviceSelect"
+                  class="device-checkbox"
+                ></el-checkbox>
                 <span class="device-name">{{ device.name }}</span>
                 <el-dropdown trigger="click" @command="command => handleCommand(command, device)">
                   <i class="el-icon-more"></i>
-                  <el-dropdown-menu slot="dropdown">
-                    <el-dropdown-item command="control">控制</el-dropdown-item>
-                    <el-dropdown-item command="detail">详情</el-dropdown-item>
-                  </el-dropdown-menu>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="control">控制</el-dropdown-item>
+                      <el-dropdown-item command="detail">详情</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
                 </el-dropdown>
               </div>
               <div class="device-content">
                 <div class="temp-display">
-                  <i class="el-icon-house"></i>
-                  <span class="temp-value">{{ device.current_temp }}°C</span>
+                  <div class="temp-label">
+                    <el-icon><House /></el-icon>
+                    <span>室内温度</span>
+                  </div>
+                  <div class="temp-value">{{ device.current_temp }}°C</div>
                 </div>
                 <div class="device-info">
                   <div class="info-item">
@@ -87,7 +111,9 @@
                     {{ getStatusText(device.status) }}
                   </el-tag>
                   <div class="mode-icons">
-                    <i :class="getModeIcon(device.mode)" :title="getModeText(device.mode)"></i>
+                    <el-icon :title="getModeText(device.mode)">
+                      <component :is="getModeIcon(device.mode)" />
+                    </el-icon>
                   </div>
                 </div>
               </div>
@@ -98,7 +124,12 @@
     </el-row>
 
     <!-- 控制弹窗 -->
-    <el-dialog title="设备控制" :visible.sync="dialogVisible" width="30%" custom-class="control-dialog">
+    <el-dialog
+      v-model="dialogVisible"
+      title="设备控制"
+      width="30%"
+      custom-class="control-dialog"
+    >
       <el-form :model="controlForm" label-width="100px">
         <el-form-item label="运行状态">
           <el-switch v-model="controlForm.running"/>
@@ -115,16 +146,64 @@
           </el-radio-group>
         </el-form-item>
       </el-form>
-      <span slot="footer" class="dialog-footer">
-        <el-button @click="dialogVisible = false">取 消</el-button>
-        <el-button type="primary" @click="handleControlSubmit">确 定</el-button>
-      </span>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="dialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="handleControlSubmit">确 定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 批量删除确认对话框 -->
+    <el-dialog
+      v-model="batchDeleteDialogVisible"
+      title="确认删除"
+      width="30%"
+    >
+      <span>确定要删除选中的 {{ selectedDeviceCount }} 个设备吗？</span>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="batchDeleteDialogVisible = false">取消</el-button>
+          <el-button type="danger" @click="confirmBatchDelete">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 批量控制弹窗 -->
+    <el-dialog
+      v-model="batchControlDialogVisible"
+      title="批量控制"
+      width="30%"
+      custom-class="control-dialog"
+    >
+      <el-form :model="batchControlForm" label-width="100px">
+        <el-form-item label="运行状态">
+          <el-switch v-model="batchControlForm.running"/>
+        </el-form-item>
+        <el-form-item label="设置温度">
+          <el-input-number v-model="batchControlForm.temp" :min="16" :max="30" :step="0.5"/>
+        </el-form-item>
+        <el-form-item label="运行模式">
+          <el-radio-group v-model="batchControlForm.mode">
+            <el-radio label="cooling">制冷</el-radio>
+            <el-radio label="heating">制热</el-radio>
+            <el-radio label="fan">送风</el-radio>
+            <el-radio label="dehumidify">除湿</el-radio>
+          </el-radio-group>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="batchControlDialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="confirmBatchControl">确 定</el-button>
+        </span>
+      </template>
     </el-dialog>
   </div>
 </template>
 
 <script>
-import { get } from '@/util/request'
+import { get, post } from '@/util/request'
 
 export default {
   name: 'Department',
@@ -152,7 +231,20 @@ export default {
         temp: 25,
         mode: 'cooling'
       },
-      currentDevice: null
+      currentDevice: null,
+      // 添加批量删除相关的数据
+      batchDeleteDialogVisible: false,
+      batchControlDialogVisible: false,
+      batchControlForm: {
+        running: true,
+        temp: 25,
+        mode: 'cooling'
+      }
+    }
+  },
+  computed: {
+    selectedDeviceCount() {
+      return this.deviceList.filter(device => device.selected).length
     }
   },
   created() {
@@ -163,9 +255,42 @@ export default {
     handleFilter() {
       this.fetchDeviceList()
     },
-    handleBatchControl() {
-      // 实现批量控制逻辑
+
+    handleDeviceSelect() {
+      // 触发视图更新
+      this.deviceList = [...this.deviceList]
     },
+    
+    handleBatchCommand(command) {
+      if (command === 'batchDelete') {
+        if (this.selectedDeviceCount === 0) {
+          this.$message.warning('请先选择要删除的设备')
+          return
+        }
+        this.batchDeleteDialogVisible = true
+      } else if (command === 'batchControl') {
+        if (this.selectedDeviceCount === 0) {
+          this.$message.warning('请先选择要控制的设备')
+          return
+        }
+        this.batchControlDialogVisible = true
+      }
+    },
+
+    async confirmBatchDelete() {
+      try {
+        const selectedDevices = this.deviceList.filter(device => device.selected)
+        const deviceIds = selectedDevices.map(device => device.id)
+        
+        await post('/api/device/device/batch-delete/', { device_ids: deviceIds })
+        this.$message.success('批量删除成功')
+        this.batchDeleteDialogVisible = false
+        await this.fetchDeviceList()
+      } catch (error) {
+        this.$message.error('批量删除失败：' + (error.response?.data?.error || error.message))
+      }
+    },
+
     handleNodeClick(data) {
       console.log('点击的节点数据:', data)
       if (data && data.type === 'floor') {
@@ -239,38 +364,29 @@ export default {
       try {
         let queryParams = new URLSearchParams()
         
-        if (this.listQuery.name) queryParams.append('name', this.listQuery.name)
-        if (this.listQuery.status) queryParams.append('status', this.listQuery.status)
-        
         if (floor) {
-          console.log('传入的楼层数据:', floor)
-          if (floor.id) {
-            queryParams.append('floor_id', floor.id)
-            console.log('请求参数 floor_id:', floor.id)
-          }
+          queryParams.append('floor_id', floor.id)
           if (floor.building_id) {
             queryParams.append('building_id', floor.building_id)
           }
         }
         
-        const response = await get(`/api/device/list/?${queryParams.toString()}`)
-        console.log('设备列表响应详细数据:', response.data)
-        
-        if (Array.isArray(response.data)) {
-          this.deviceList = response.data
-          // 打印每个设备的楼层信息
-          this.deviceList.forEach(device => {
-            console.log(`设备 ${device.name} 的楼层ID:`, device.floor_id)
-          })
-        } else {
-          console.error('设备列表数据格式错误:', response.data)
-          this.$message.error('设备列表数据格式错误')
-          this.deviceList = []
+        if (this.listQuery.name) {
+          queryParams.append('name', this.listQuery.name)
         }
+        if (this.listQuery.status) {
+          queryParams.append('status', this.listQuery.status)
+        }
+        
+        const response = await get(`/api/device/filter/?${queryParams.toString()}`)
+        // 添加selected属性
+        this.deviceList = response.data.map(device => ({
+          ...device,
+          selected: false
+        }))
       } catch (error) {
         console.error('获取设备列表失败:', error)
         this.$message.error('获取设备列表失败')
-        this.deviceList = []
       }
     },
     getStatusType(status) {
@@ -291,12 +407,12 @@ export default {
     },
     getModeIcon(mode) {
       const icons = {
-        cooling: 'el-icon-cold-drink',
-        heating: 'el-icon-hot-water',
-        fan: 'el-icon-wind-power',
-        dehumidify: 'el-icon-water-cup'
+        cooling: 'Sunny',      // 制冷用太阳图标
+        heating: 'Sunrise',    // 制热用日出图标
+        fan: 'WindPower',      // 送风用风力图标
+        dehumidify: 'Cloudy'   // 除湿用多云图标
       }
-      return icons[mode] || 'el-icon-setting'
+      return icons[mode] || 'Setting'
     },
     getModeText(mode) {
       const texts = {
@@ -320,6 +436,38 @@ export default {
       const count = this.deviceList.filter(device => device.floor_id === data.floor_number).length
       console.log('匹配到的设备数量:', count)
       return count
+    },
+    async confirmBatchControl() {
+      try {
+        const selectedDevices = this.deviceList.filter(device => device.selected)
+        const deviceIds = selectedDevices.map(device => device.id)
+        
+        const response = await post('/api/device/device/batch-control/', {
+          device_ids: deviceIds,
+          control: {
+            running: this.batchControlForm.running,
+            temp: this.batchControlForm.temp,
+            mode: this.batchControlForm.mode
+          }
+        })
+        
+        // 更新本地设备状态
+        if (response.data.devices) {
+          const updatedDevices = response.data.devices
+          this.deviceList = this.deviceList.map(device => {
+            const updatedDevice = updatedDevices.find(d => d.id === device.id)
+            if (updatedDevice) {
+              return { ...updatedDevice, selected: false }
+            }
+            return device
+          })
+        }
+        
+        this.$message.success('批量控制成功')
+        this.batchControlDialogVisible = false
+      } catch (error) {
+        this.$message.error('批量控制失败：' + (error.response?.data?.error || error.message))
+      }
     }
   }
 }
@@ -343,6 +491,28 @@ export default {
 
       ::v-deep .el-card__header {
         border-bottom: 1px solid #334769;
+      }
+    }
+
+    .device-card {
+      .device-header {
+        .device-checkbox {
+          ::v-deep .el-checkbox__inner {
+            border-color: #79bbff;  /* 使用深色主题的次要颜色 */
+            
+            &::after {
+              border-color: #79bbff;  /* 对勾颜色 */
+            }
+          }
+
+          ::v-deep .el-checkbox__input.is-checked .el-checkbox__inner {
+            border-color: #79bbff;
+          }
+
+          ::v-deep .el-checkbox__inner:hover {
+            border-color: #79bbff;
+          }
+        }
       }
     }
   }
@@ -436,22 +606,57 @@ export default {
 
 .device-card {
   margin-bottom: 20px;
-  border-radius: 8px;
-  transition: all 0.3s;
-
+  position: relative;
+  
   &.running {
-    border: 1px solid #67c23a;
+    border: 1px solid #67C23A;
   }
-
+  
   .device-header {
+    position: relative;
+    padding-left: 35px;  /* 为复选框留出空间 */
+    margin-bottom: 15px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
+    
+    .device-checkbox {
+      position: absolute;
+      top: 5px;  /* 调整位置往上移 */
+      left: 5px;
+      z-index: 1;
 
+      /* 自定义复选框样式 */
+      ::v-deep .el-checkbox__inner {
+        width: 20px;  /* 增大复选框大小 */
+        height: 20px;
+        background-color: transparent;  /* 设置透明背景 */
+        border: 2px solid #409EFF;  /* 加粗边框并使用主题色 */
+        border-radius: 4px;
+
+        &::after {
+          height: 12px;  /* 调整对勾大小 */
+          left: 6px;
+          width: 5px;
+          border-width: 2px;
+        }
+      }
+
+      /* 选中状态样式 */
+      ::v-deep .el-checkbox__input.is-checked .el-checkbox__inner {
+        background-color: transparent;
+        border-color: #409EFF;
+      }
+
+      /* 鼠标悬停状态 */
+      ::v-deep .el-checkbox__inner:hover {
+        border-color: #409EFF;
+      }
+    }
+    
     .device-name {
       font-size: 16px;
-      font-weight: 500;
+      font-weight: bold;
     }
   }
 
@@ -460,12 +665,28 @@ export default {
   }
 
   .temp-display {
-    font-size: 32px;
     margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    
+    .temp-label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: #909399;
+      font-size: 14px;
+      margin-bottom: 5px;
+      
+      .el-icon {
+        font-size: 16px;
+      }
+    }
 
     .temp-value {
+      font-size: 32px;
       color: #f4a261;
-      margin-left: 10px;
+      font-weight: 500;
     }
   }
 
