@@ -36,12 +36,30 @@ httpService.interceptors.response.use(function (response) {
         switch (error.response.status) {
             case 401: // token 过期
                 localStorage.removeItem('token');
+                sessionStorage.removeItem('token');
                 localStorage.removeItem('currentUser');
+                sessionStorage.removeItem('currentUser');
                 window.location.href = '/login';
                 break;
+            case 403: // 权限不足
+                console.error('权限不足');
+                break;
+            case 404: // 接口不存在
+                console.error('接口不存在');
+                break;
+            case 500: // 服务器错误
+                console.error('服务器错误');
+                break;
             default:
+                console.error('未知错误');
                 break;
         }
+    } else if (error.request) {
+        // 请求已经发出，但没有收到响应
+        console.error('网络错误，请检查您的网络连接');
+    } else {
+        // 请求配置发生错误
+        console.error('请求配置错误:', error.message);
     }
     return Promise.reject(error);
 });

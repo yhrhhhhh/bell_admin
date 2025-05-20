@@ -18,22 +18,27 @@
       <el-table-column type="selection" width="55"/>
       <el-table-column prop="avatar" label="头像" width="80" align="center">
         <template v-slot="scope">
-          <img :src="getServerUrl()+'media/userAvatar/'+scope.row.avatar" width="50" height="50"/>
+          <img 
+            :src="getServerUrl() + 'media/userAvatar/' + (scope.row.avatar ? scope.row.avatar.split('/').pop().split('\\').pop() : 'default.jpg')" 
+            width="50" 
+            height="50"
+            @error="(e) => e.target.src = getServerUrl() + 'media/userAvatar/default.jpg'"
+          />
         </template>
       </el-table-column>
       <el-table-column prop="username" label="用户名" width="100" align="center"/>
       <el-table-column prop="email" label="邮箱" width="200" align="center"/>
       <el-table-column prop="phonenumber" label="手机号" width="120" align="center"/>
-      <el-table-column prop="status" label="状态？" width="200" align="center">
+      <el-table-column prop="status" label="状态" width="200" align="center">
         <template v-slot="{row}">
           <el-switch v-model="row.status" @change="statusChangeHandle(row)" active-text="正常"
-                     inactive-text="禁用" :active-value="1" :inactive-value="0"></el-switch>
+                     inactive-text="禁用" :active-value="true" :inactive-value="false"></el-switch>
         </template>
       </el-table-column>
       <el-table-column prop="create_time" label="创建时间" width="200" align="center"/>
       <el-table-column prop="login_date" label="最后登录时间" width="200" align="center"/>
       <el-table-column prop="remark" label="备注"/>
-      <el-table-column prop="action" label="操作" width="270" fixed="right" align="center">
+      <el-table-column prop="action" label="操作" width="200" fixed="right" align="center">
         <template v-slot="scope">
           <el-popconfirm v-if="scope.row.username!='python222'" title="您确定要对这个用户重置密码吗？"
                          @confirm="handleResetPassword(scope.row.id)">
@@ -42,8 +47,6 @@
             </template>
           </el-popconfirm>
 
-          <el-button type="primary" v-if="scope.row.username!='python222'" :icon="Edit"
-                     @click="handleDialogValue(scope.row.id)"></el-button>
           <el-popconfirm v-if="scope.row.username!='python222'" title="您确定要删除这条记录吗？"
                          @confirm="handleDelete(scope.row.id)">
             <template #reference>
@@ -70,7 +73,7 @@
 
 <script setup>
 import requestUtil,{getServerUrl} from '@/util/request'
-import {Search, Delete, DocumentAdd, Edit, RefreshRight} from '@element-plus/icons-vue'
+import {Search, Delete, DocumentAdd, RefreshRight} from '@element-plus/icons-vue'
 import {ref} from "vue";
 import Dialog from './components/dialog'
 import {ElMessage} from 'element-plus'

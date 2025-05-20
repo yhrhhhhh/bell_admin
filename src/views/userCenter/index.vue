@@ -30,8 +30,12 @@
                 <div class="pull-right">{{ currentUser.roles }}</div>
               </li>
               <li class="list-group-item">
-                <svg-icon icon="date"/>&nbsp;&nbsp;创建日期
-                <div class="pull-right">{{ currentUser.login_date }}</div>
+                <svg-icon icon="date"/>&nbsp;&nbsp;最后登录时间
+                <div class="pull-right">{{ formatDateTime(currentUser.login_date) }}</div>
+              </li>
+              <li class="list-group-item">
+                <svg-icon icon="date"/>&nbsp;&nbsp;创建时间
+                <div class="pull-right">{{ formatDateTime(currentUser.create_time) }}</div>
               </li>
             </ul>
           </div>
@@ -66,33 +70,104 @@
 </template>
 
 <script setup>
-import {ref, onMounted} from "vue";
+import {ref, onMounted, onUnmounted} from "vue";
 import avatar from './components/avatar'
 import userInfo from './components/userInfo'
 import resetPwd from './components/resetPwd'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
+import requestUtil from '@/util/request'
 
 const router = useRouter()
 const activeTab = ref("userinfo")
 const currentUser = ref(null)
 
-const loadUserInfo = () => {
+// 优化时间格式化函数
+const formatDateTime = (dateTimeStr) => {
+  if (!dateTimeStr) return '暂无记录'
   try {
-    const userStr = localStorage.getItem("currentUser")
+    const date = new Date(dateTimeStr)
+    if (isNaN(date.getTime())) {
+      console.warn('无效的日期时间字符串:', dateTimeStr)
+      return '日期格式错误'
+    }
+    
+    // 使用Intl.DateTimeFormat进行本地化时间格式化
+    return new Intl.DateTimeFormat('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Shanghai'
+    }).format(date)
+  } catch (e) {
+    console.error('时间格式化错误:', e, dateTimeStr)
+    return '时间格式化失败'
+  }
+}
+
+const loadUserInfo = async () => {
+  try {
+    // 优先从sessionStorage获取，如果没有则从localStorage获取
+    let userStr = sessionStorage.getItem("currentUser") || localStorage.getItem("currentUser")
+    
     if (!userStr) {
       ElMessage.error('用户信息已失效，请重新登录')
       router.push('/login')
       return false
     }
+
     const userData = JSON.parse(userStr)
+    
     if (!userData || !userData.username) {
       ElMessage.error('用户信息不完整，请重新登录')
       router.push('/login')
       return false
     }
-    currentUser.value = userData
+
+    // 验证token是否存在
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+    if (!token) {
+      ElMessage.error('登录已过期，请重新登录')
+      router.push('/login')
+      return false
+    }
+
+    try {
+      // 从服务器获取最新的用户信息
+      const response = await requestUtil.post("user/search", {
+        pageNum: 1,
+        pageSize: 10,
+        query: userData.username
+      })
+      
+      if (response.data.code === 200 && response.data.userList?.length > 0) {
+        const latestUserData = response.data.userList.find(user => user.id === userData.id)
+        if (latestUserData) {
+          // 更新存储的用户信息
+          const updatedUserData = {
+            ...latestUserData,
+            login_date: formatDateTime(latestUserData.login_date),
+            create_time: formatDateTime(latestUserData.create_time)
+          }
+          localStorage.setItem('currentUser', JSON.stringify(updatedUserData))
+          sessionStorage.setItem('currentUser', JSON.stringify(updatedUserData))
+          currentUser.value = updatedUserData
+        } else {
+          currentUser.value = userData
+        }
+      } else {
+        currentUser.value = userData
+      }
+    } catch (error) {
+      console.error('获取最新用户信息失败:', error)
+      currentUser.value = userData
+    }
+    
     return true
   } catch (error) {
     console.error('获取用户信息失败:', error)
@@ -102,8 +177,36 @@ const loadUserInfo = () => {
   }
 }
 
+// 添加定期检查登录状态
+const checkLoginStatus = () => {
+  if (!loadUserInfo()) {
+    clearInterval(loginCheckInterval)
+  }
+}
+
+let loginCheckInterval
+
 onMounted(() => {
-  loadUserInfo()
+  if (loadUserInfo()) {
+    // 每5分钟检查一次登录状态
+    loginCheckInterval = setInterval(checkLoginStatus, 5 * 60 * 1000)
+  }
+})
+
+onUnmounted(() => {
+  if (loginCheckInterval) {
+    clearInterval(loginCheckInterval)
+  }
+})
+
+// 添加刷新用户信息的方法
+const refreshUserInfo = async () => {
+  await loadUserInfo()
+}
+
+// 导出refreshUserInfo方法供其他组件使用
+defineExpose({
+  refreshUserInfo
 })
 </script>
 

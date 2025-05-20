@@ -33,17 +33,20 @@ const squareUrl = ref('')
 
 onMounted(() => {
   try {
-    const userStr = window.sessionStorage.getItem("currentUser")
+    // 优先从localStorage获取用户信息
+    const userStr = localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser")
     if (userStr) {
       const user = JSON.parse(userStr)
       username.value = user.username || '用户'
-      squareUrl.value = getServerUrl() + 'media/userAvatar/' + (user.avatar || 'default.jpg')
+      // 构建完整的头像URL，确保只使用文件名
+      const fileName = user.avatar ? user.avatar.split('/').pop().split('\\').pop() : 'default.jpg'
+      squareUrl.value = `${getServerUrl()}media/userAvatar/${fileName}`
     } else {
-      squareUrl.value = getServerUrl() + 'media/userAvatar/default.jpg'
+      squareUrl.value = `${getServerUrl()}media/userAvatar/default.jpg`
     }
   } catch (e) {
     console.error('解析用户数据失败:', e)
-    squareUrl.value = getServerUrl() + 'media/userAvatar/default.jpg'
+    squareUrl.value = `${getServerUrl()}media/userAvatar/default.jpg`
   }
 })
 
@@ -59,8 +62,9 @@ const goToUserManage = () => {
   router.push('/sys/user')
 }
 
-const logout=()=>{
-  window.sessionStorage.clear()
+const logout = () => {
+  localStorage.clear()
+  sessionStorage.clear()
   store.commit('RESET_TAB')
   router.replace("/login")
 }

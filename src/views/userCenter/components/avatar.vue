@@ -14,7 +14,7 @@
         :on-success="handleAvatarSuccess"
         :before-upload="beforeAvatarUpload"
     >
-      <img v-if="imageUrl" :src="imageUrl" class="avatar"/>
+      <img v-if="imageUrl" :src="imageUrl" class="avatar" @error="handleImageError"/>
       <el-icon v-else class="avatar-uploader-icon">
         <Plus/>
       </el-icon>
@@ -26,7 +26,7 @@
 </template>
 
 <script setup>
-import {defineProps, ref, watch} from "vue";
+import {defineProps, ref, watch, getCurrentInstance} from "vue";
 import requestUtil, {getServerUrl} from "@/util/request";
 import {ElMessage} from 'element-plus'
 import {Plus} from '@element-plus/icons-vue'
@@ -55,31 +55,46 @@ watch(() => props.user, (newUser) => {
   if (newUser) {
     form.value = { ...newUser }
     if (newUser.avatar) {
-      imageUrl.value = getServerUrl() + 'media/userAvatar/' + newUser.avatar
+      // 构建完整的头像URL，确保只使用文件名
+      const fileName = newUser.avatar.split('/').pop().split('\\').pop()
+      imageUrl.value = `${getServerUrl()}media/userAvatar/${fileName}`
+    } else {
+      imageUrl.value = `${getServerUrl()}media/userAvatar/default.jpg`
     }
   }
 }, { immediate: true })
 
 const handleAvatarSuccess = (res) => {
   if (res && res.title) {
-    imageUrl.value = getServerUrl() + 'media/userAvatar/' + res.title
-    form.value.avatar = res.title
+    // 只存储文件名，不包含路径
+    const fileName = res.title.split('/').pop().split('\\').pop()
+    imageUrl.value = `${getServerUrl()}media/userAvatar/${fileName}`
+    form.value.avatar = fileName
+    ElMessage.success('头像上传成功')
+  } else {
+    ElMessage.error('上传失败：服务器返回数据格式错误')
+    handleImageError()
   }
 }
 
 const beforeAvatarUpload = (file) => {
-  const isJPG = file.type === 'image/jpeg'
+  const isValidFormat = ['image/jpeg', 'image/png', 'image/gif'].includes(file.type)
   const isLt2M = file.size / 1024 / 1024 < 2
 
-  if (!isJPG) {
-    ElMessage.error('图片必须是jpg格式')
+  if (!isValidFormat) {
+    ElMessage.error('头像必须是JPG/PNG/GIF格式')
     return false
   }
   if (!isLt2M) {
-    ElMessage.error('图片大小不能超过2M!')
+    ElMessage.error('头像大小不能超过2MB')
     return false
   }
   return true
+}
+
+const handleImageError = () => {
+  imageUrl.value = `${getServerUrl()}media/userAvatar/default.jpg`
+  ElMessage.warning('头像加载失败，已使用默认头像')
 }
 
 const handleConfirm = async () => {
@@ -88,11 +103,17 @@ const handleConfirm = async () => {
     const data = result.data
     if (data.code === 200) {
       ElMessage.success("更新头像成功！")
-      // 更新localStorage中的用户信息
+      // 更新localStorage和sessionStorage中的用户信息
       const currentUser = JSON.parse(localStorage.getItem('currentUser'))
       if (currentUser) {
-        currentUser.avatar = form.value.avatar
+        currentUser.avatar = form.value.avatar  // 只存储文件名
         localStorage.setItem('currentUser', JSON.stringify(currentUser))
+        sessionStorage.setItem('currentUser', JSON.stringify(currentUser))
+      }
+      // 通知父组件刷新用户信息
+      const userCenter = getCurrentInstance()?.parent
+      if (userCenter?.exposed?.refreshUserInfo) {
+        await userCenter.exposed.refreshUserInfo()
       }
     } else {
       ElMessage.error(data.errorInfo || '更新头像失败')

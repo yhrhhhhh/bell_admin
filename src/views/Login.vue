@@ -47,13 +47,14 @@
 </template>
 
 <script setup>
-  import {ref} from 'vue'
+  import {ref, onMounted} from 'vue'
   import requestUtil from '@/util/request'
   import qs from 'qs'
   import {ElMessage} from 'element-plus'
   import Cookies from "js-cookie";
   import { encrypt, decrypt } from "@/util/jsencrypt";
   import router from '@/router'
+  import store from '@/store'
 
 
   const loginForm=ref({
@@ -69,36 +70,71 @@
     password: [{required: true, trigger: "blur", message: "请输入您的密码"}]
   };
 
-  const handleLogin=()=>{
-    loginRef.value.validate(async (valid)=>{
-      if(valid){
-        let result=await requestUtil.post("user/login/", loginForm.value)
-        console.log(result)
-        let data=result.data
-        if(data.code==200){
-          ElMessage.success(data.info)
-          localStorage.setItem("token", data.token)
-          const currentUser=data.user
-          localStorage.setItem("currentUser",JSON.stringify(currentUser))
-          // 勾选了需要记住密码设置在 cookie 中设置记住用户名和密码
-          if (loginForm.value.rememberMe) {
-            Cookies.set("username", loginForm.value.username, { expires: 30 });
-            Cookies.set("password", encrypt(loginForm.value.password), { expires: 30 });
-            Cookies.set("rememberMe", loginForm.value.rememberMe, { expires: 30 });
-          } else {
-            // 否则移除
-            Cookies.remove("username");
-            Cookies.remove("password");
-            Cookies.remove("rememberMe");
-          }
-          router.replace("/bsns/department")
-        }else{
-          ElMessage.error(data.info)
+  const handleLogin = async () => {
+    try {
+      await loginRef.value.validate()
+      const result = await requestUtil.post("user/login/", loginForm.value)
+      const data = result.data
+      if (data.code === 200) {
+        ElMessage.success(data.info)
+        // 存储token和用户信息
+        const token = data.token
+        const userInfo = data.user
+        
+        // 统一存储用户信息
+        const storeUserInfo = () => {
+          localStorage.setItem("token", token)
+          sessionStorage.setItem("token", token)
+          localStorage.setItem("currentUser", JSON.stringify(userInfo))
+          sessionStorage.setItem("currentUser", JSON.stringify(userInfo))
         }
-      }else{
-        console.log("验证失败")
+        
+        storeUserInfo()
+        
+        // 记住密码处理
+        if (loginForm.value.rememberMe) {
+          Cookies.set("username", loginForm.value.username, { expires: 30 })
+          Cookies.set("password", encrypt(loginForm.value.password), { expires: 30 })
+          Cookies.set("rememberMe", loginForm.value.rememberMe, { expires: 30 })
+        } else {
+          Cookies.remove("username")
+          Cookies.remove("password")
+          Cookies.remove("rememberMe")
+        }
+        
+        // 添加外机控制面板到标签页并跳转
+        store.commit('ADD_TABS', {
+          name: '外机控制面板',
+          path: '/bsns/department'
+        })
+        router.push('/bsns/department')
+      } else {
+        ElMessage.error(data.info || '登录失败')
       }
-    })
+    } catch (error) {
+      console.error('登录失败:', error)
+      ElMessage.error(error.message || '登录失败，请重试')
+    }
+  }
+
+  // 检查是否可以自动登录
+  const checkAutoLogin = () => {
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token")
+    const userInfo = localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser")
+    const rememberMe = Cookies.get("rememberMe")
+    
+    if (token && userInfo && rememberMe) {
+      const username = Cookies.get("username")
+      const password = decrypt(Cookies.get("password"))
+      if (username && password) {
+        loginForm.value = {
+          username,
+          password,
+          rememberMe: true
+        }
+        handleLogin()
+      }
+    }
   }
 
   function getCookie() {
@@ -112,8 +148,10 @@
     };
   }
 
-  getCookie();
-
+  onMounted(() => {
+    getCookie()
+    checkAutoLogin()
+  })
 
 </script>
 
