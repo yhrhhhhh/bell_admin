@@ -26,26 +26,20 @@
 </template>
 
 <script setup>
-
-import {defineProps, ref} from "vue";
+import {defineProps, ref, watch} from "vue";
 import requestUtil, {getServerUrl} from "@/util/request";
 import {ElMessage} from 'element-plus'
 import {Plus} from '@element-plus/icons-vue'
 
-
-const props = defineProps(
-    {
-      user: {
-        type: Object,
-        default: () => {
-        },
-        required: true
-      }
-    }
-)
+const props = defineProps({
+  user: {
+    type: Object,
+    required: true
+  }
+})
 
 const headers = ref({
-  Authorization: window.sessionStorage.getItem('token')
+  Authorization: localStorage.getItem('token')
 })
 
 const form = ref({
@@ -54,17 +48,24 @@ const form = ref({
 })
 
 const formRef = ref(null)
-
 const imageUrl = ref("")
 
-form.value = props.user;
-imageUrl.value = getServerUrl() + 'media/userAvatar/' + form.value.avatar
+// 使用watch监听props.user的变化
+watch(() => props.user, (newUser) => {
+  if (newUser) {
+    form.value = { ...newUser }
+    if (newUser.avatar) {
+      imageUrl.value = getServerUrl() + 'media/userAvatar/' + newUser.avatar
+    }
+  }
+}, { immediate: true })
 
 const handleAvatarSuccess = (res) => {
-  imageUrl.value = getServerUrl() + 'media/userAvatar/' + res.title
-  form.value.avatar = res.title;
+  if (res && res.title) {
+    imageUrl.value = getServerUrl() + 'media/userAvatar/' + res.title
+    form.value.avatar = res.title
+  }
 }
-
 
 const beforeAvatarUpload = (file) => {
   const isJPG = file.type === 'image/jpeg'
@@ -72,25 +73,35 @@ const beforeAvatarUpload = (file) => {
 
   if (!isJPG) {
     ElMessage.error('图片必须是jpg格式')
+    return false
   }
   if (!isLt2M) {
     ElMessage.error('图片大小不能超过2M!')
+    return false
   }
-  return isJPG && isLt2M
+  return true
 }
 
 const handleConfirm = async () => {
-
-  let result = await requestUtil.post("user/updateAvatar", form.value);
-  let data = result.data;
-  if (data.code == 200) {
-    ElMessage.success("执行成功！")
-  } else {
-    ElMessage.error(data.errorInfo);
+  try {
+    const result = await requestUtil.post("user/updateAvatar", form.value)
+    const data = result.data
+    if (data.code === 200) {
+      ElMessage.success("更新头像成功！")
+      // 更新localStorage中的用户信息
+      const currentUser = JSON.parse(localStorage.getItem('currentUser'))
+      if (currentUser) {
+        currentUser.avatar = form.value.avatar
+        localStorage.setItem('currentUser', JSON.stringify(currentUser))
+      }
+    } else {
+      ElMessage.error(data.errorInfo || '更新头像失败')
+    }
+  } catch (error) {
+    console.error('更新头像失败:', error)
+    ElMessage.error('更新头像失败，请重试')
   }
-
 }
-
 </script>
 
 <style>

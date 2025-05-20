@@ -79,11 +79,12 @@
                 ></el-checkbox>
                 <span class="device-name">{{ device.name }}</span>
                 <el-dropdown trigger="click" @command="command => handleCommand(command, device)">
-                  <i class="el-icon-more"></i>
+                  <el-icon class="more-icon"><More /></el-icon>
                   <template #dropdown>
                     <el-dropdown-menu>
+                      <el-dropdown-item command="edit">修改设备</el-dropdown-item>
+                      <el-dropdown-item command="delete">删除设备</el-dropdown-item>
                       <el-dropdown-item command="control">控制</el-dropdown-item>
-                      <el-dropdown-item command="detail">详情</el-dropdown-item>
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>
@@ -199,14 +200,98 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 修改设备弹窗 -->
+    <el-dialog
+      v-model="editDialogVisible"
+      title="修改设备"
+      width="30%"
+    >
+      <el-form :model="editForm" :rules="editRules" ref="editFormRef" label-width="100px">
+        <el-form-item label="设备名称" prop="name">
+          <el-input v-model="editForm.name" placeholder="请输入设备名称"/>
+        </el-form-item>
+        <el-form-item label="设备编号" prop="code">
+          <el-input v-model="editForm.code" placeholder="请输入设备编号"/>
+        </el-form-item>
+        <el-form-item label="所在楼层" prop="floor_id">
+          <el-select v-model="editForm.floor_id" placeholder="请选择楼层">
+            <el-option
+              v-for="building in floorData"
+              :key="building.id"
+              :label="building.label"
+              :value="building.id"
+            >
+              <template v-for="floor in building.children" :key="floor.id">
+                <el-option
+                  :label="building.label + ' - ' + floor.label"
+                  :value="floor.id"
+                />
+              </template>
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="运行状态" prop="status">
+          <el-switch
+            v-model="editForm.status"
+            :active-value="'running'"
+            :inactive-value="'stopped'"
+            active-text="运行"
+            inactive-text="停止"
+          />
+        </el-form-item>
+        <el-form-item label="设置温度" prop="set_temp">
+          <el-input-number
+            v-model="editForm.set_temp"
+            :min="16"
+            :max="30"
+            :step="0.5"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="运行模式" prop="mode">
+          <el-radio-group v-model="editForm.mode">
+            <el-radio label="cooling">制冷</el-radio>
+            <el-radio label="heating">制热</el-radio>
+            <el-radio label="fan">送风</el-radio>
+            <el-radio label="dehumidify">除湿</el-radio>
+          </el-radio-group>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="editDialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="handleEditSubmit">确 定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 删除确认对话框 -->
+    <el-dialog
+      v-model="deleteDialogVisible"
+      title="确认删除"
+      width="30%"
+    >
+      <span>确定要删除该设备吗？</span>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="deleteDialogVisible = false">取消</el-button>
+          <el-button type="danger" @click="handleDeleteConfirm">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script>
-import { get, post } from '@/util/request'
+import { get, post, put, del } from '@/util/request'
+import { More } from '@element-plus/icons-vue'
 
 export default {
   name: 'Department',
+  components: {
+    More
+  },
   data() {
     return {
       isDarkTheme: true,
@@ -239,6 +324,28 @@ export default {
         running: true,
         temp: 25,
         mode: 'cooling'
+      },
+      editDialogVisible: false,
+      deleteDialogVisible: false,
+      editForm: {
+        id: '',
+        name: '',
+        code: '',
+        floor_id: '',
+        status: 'stopped',
+        set_temp: 25,
+        mode: 'cooling'
+      },
+      editRules: {
+        name: [
+          { required: true, message: '请输入设备名称', trigger: 'blur' }
+        ],
+        code: [
+          { required: true, message: '请输入设备编号', trigger: 'blur' }
+        ],
+        floor_id: [
+          { required: true, message: '请选择所在楼层', trigger: 'blur' }
+        ]
       }
     }
   },
@@ -314,7 +421,20 @@ export default {
     },
     handleCommand(command, device) {
       this.currentDevice = device
-      if (command === 'control') {
+      if (command === 'edit') {
+        this.editForm = {
+          id: device.id,
+          name: device.name,
+          code: device.device_id,
+          floor_id: device.floor_id,
+          status: device.status,
+          set_temp: device.set_temp,
+          mode: device.mode
+        }
+        this.editDialogVisible = true
+      } else if (command === 'delete') {
+        this.deleteDialogVisible = true
+      } else if (command === 'control') {
         this.controlForm = {
           running: device.status === 'running',
           temp: device.set_temp,
@@ -323,9 +443,37 @@ export default {
         this.dialogVisible = true
       }
     },
-    handleControlSubmit() {
-      // 发送控制命令到后端
-      this.dialogVisible = false
+    async handleControlSubmit() {
+      try {
+        const response = await post('/api/device/device/batch-control/', {
+          device_ids: [this.currentDevice.id],
+          control: {
+            running: this.controlForm.running,
+            temp: this.controlForm.temp,
+            mode: this.controlForm.mode
+          }
+        })
+        
+        if (response.data.message) {
+          this.$message.success('控制命令发送成功')
+          this.dialogVisible = false
+          // 更新设备状态
+          const updatedDevices = response.data.devices
+          if (updatedDevices && updatedDevices.length > 0) {
+            this.deviceList = this.deviceList.map(device => {
+              const updatedDevice = updatedDevices.find(d => d.id === device.id)
+              if (updatedDevice) {
+                return { ...device, ...updatedDevice }
+              }
+              return device
+            })
+          }
+        } else {
+          this.$message.error(response.data.error || '控制失败')
+        }
+      } catch (error) {
+        this.$message.error('控制失败：' + error.message)
+      }
     },
     async fetchBuildingTree() {
       try {
@@ -467,6 +615,50 @@ export default {
         this.batchControlDialogVisible = false
       } catch (error) {
         this.$message.error('批量控制失败：' + (error.response?.data?.error || error.message))
+      }
+    },
+    async handleEditSubmit() {
+      try {
+        console.log('准备发送的编辑数据:', this.editForm)
+        const response = await put(`/api/device/device/${this.editForm.id}/`, {
+          name: this.editForm.name,
+          device_id: this.editForm.code,
+          location: this.editForm.floor_id,
+          set_temp: this.editForm.set_temp,
+          mode: this.editForm.mode,
+          status: this.editForm.status
+        })
+        
+        console.log('修改设备响应:', response)
+        
+        if (response.status === 200 || response.data.code === 200) {
+          this.$message.success('修改成功')
+          this.editDialogVisible = false
+          await this.fetchDeviceList()
+        } else {
+          this.$message.error(response.data.message || '修改失败')
+        }
+      } catch (error) {
+        console.error('修改设备失败:', {
+          error: error,
+          response: error.response,
+          data: error.response?.data,
+          status: error.response?.status,
+          message: error.message
+        })
+        this.$message.error(`修改失败：${error.response?.data?.message || error.response?.data?.error || error.message}`)
+      }
+    },
+    async handleDeleteConfirm() {
+      try {
+        // 使用 DELETE 方法和正确的路径
+        await del(`/api/device/device/${this.currentDevice.id}/`)
+        
+        this.$message.success('删除成功')
+        this.deleteDialogVisible = false
+        await this.fetchDeviceList()
+      } catch (error) {
+        this.$message.error('删除失败：' + (error.response?.data?.message || error.message))
       }
     }
   }
@@ -657,6 +849,19 @@ export default {
     .device-name {
       font-size: 16px;
       font-weight: bold;
+    }
+
+    .more-icon {
+      font-size: 20px;
+      color: #909399;
+      cursor: pointer;
+      padding: 5px;
+      border-radius: 4px;
+      transition: all 0.3s;
+
+      &:hover {
+        background-color: rgba(144, 147, 153, 0.1);
+      }
     }
   }
 

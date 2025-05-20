@@ -77,9 +77,9 @@
         let data=result.data
         if(data.code==200){
           ElMessage.success(data.info)
-          window.sessionStorage.setItem("token",data.token)
+          localStorage.setItem("token", data.token)
           const currentUser=data.user
-          window.sessionStorage.setItem("currentUser",JSON.stringify(currentUser))
+          localStorage.setItem("currentUser",JSON.stringify(currentUser))
           // 勾选了需要记住密码设置在 cookie 中设置记住用户名和密码
           if (loginForm.value.rememberMe) {
             Cookies.set("username", loginForm.value.username, { expires: 30 });
@@ -91,7 +91,7 @@
             Cookies.remove("password");
             Cookies.remove("rememberMe");
           }
-          router.replace("/")
+          router.replace("/bsns/department")
         }else{
           ElMessage.error(data.info)
         }

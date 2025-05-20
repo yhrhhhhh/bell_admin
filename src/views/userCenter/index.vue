@@ -1,14 +1,14 @@
 <template>
   <div class="app-container">
-    <el-row :gutter="20">
+    <el-row :gutter="20" v-if="currentUser">
       <el-col :span="6">
         <el-card class="box-card">
-          <template v-slot:header>
+          <template #header>
             <div class="clearfix">
               <span>个人信息</span>
             </div>
           </template>
-          <div>
+          <div v-if="currentUser">
             <div class="text-center">
               <avatar :user="currentUser"/>
             </div>
@@ -39,7 +39,7 @@
       </el-col>
       <el-col :span="18">
         <el-card>
-          <template v-slot:header>
+          <template #header>
             <div class="clearfix">
               <span>基本资料</span>
             </div>
@@ -55,21 +55,81 @@
         </el-card>
       </el-col>
     </el-row>
+    <div v-else class="loading-container">
+      <el-empty description="加载中...">
+        <template #image>
+          <el-icon class="loading-icon"><Loading /></el-icon>
+        </template>
+      </el-empty>
+    </div>
   </div>
 </template>
 
 <script setup>
-import {ref} from "vue";
+import {ref, onMounted} from "vue";
 import avatar from './components/avatar'
 import userInfo from './components/userInfo'
 import resetPwd from './components/resetPwd'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { Loading } from '@element-plus/icons-vue'
 
-const currentUser=JSON.parse(sessionStorage.getItem("currentUser"))
+const router = useRouter()
+const activeTab = ref("userinfo")
+const currentUser = ref(null)
 
-const activeTab=ref("userinfo")
+const loadUserInfo = () => {
+  try {
+    const userStr = localStorage.getItem("currentUser")
+    if (!userStr) {
+      ElMessage.error('用户信息已失效，请重新登录')
+      router.push('/login')
+      return false
+    }
+    const userData = JSON.parse(userStr)
+    if (!userData || !userData.username) {
+      ElMessage.error('用户信息不完整，请重新登录')
+      router.push('/login')
+      return false
+    }
+    currentUser.value = userData
+    return true
+  } catch (error) {
+    console.error('获取用户信息失败:', error)
+    ElMessage.error('获取用户信息失败，请重新登录')
+    router.push('/login')
+    return false
+  }
+}
+
+onMounted(() => {
+  loadUserInfo()
+})
 </script>
 
 <style lang="scss" scoped>
+.app-container {
+  padding: 20px;
+  min-height: 100vh;
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+
+  .loading-icon {
+    font-size: 32px;
+    color: #409EFF;
+    animation: rotate 2s linear infinite;
+  }
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
 .list-group-striped > .list-group-item {
   border-left: 0;
@@ -91,11 +151,18 @@ const activeTab=ref("userinfo")
   float: right !important;
 }
 
+.text-center {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
 ::v-deep .el-card__body {
-  height: 230px;
+  height: auto;
+  min-height: 230px;
 }
 
 ::v-deep .box-card {
-  height: 450px;
+  height: auto;
+  min-height: 450px;
 }
 </style>
