@@ -30,48 +30,130 @@
       />
     </div>
 
-    <el-row :gutter="20">
-      <!-- 左侧楼层树 -->
+    <el-row :gutter="20" class="main-content">
+      <!-- 左侧树形菜单 -->
       <el-col :span="4">
-        <el-card class="tree-card" :class="{'dark': isDarkTheme}">
-          <template #header>
-            <div class="tree-header">
-              <span><i class="el-icon-office-building"></i> 楼层导航</span>
-              <el-button type="text" @click="refreshTree">
-                <i class="el-icon-refresh"></i>
-              </el-button>
+        <div class="org-structure">
+          <div class="org-tabs">
+            <div 
+              class="org-tab" 
+              :class="{ active: currentTreeType === 'building' }"
+              @click="currentTreeType = 'building'"
+            >
+              <i class="el-icon-office-building"></i>
+              楼栋
             </div>
-          </template>
-          <el-tree
-            :data="floorData"
-            :props="defaultProps"
-            @node-click="handleNodeClick"
-            default-expand-all
-            node-key="id"
-            highlight-current
-            :expand-on-click-node="false"
-            class="custom-tree"
-          >
-            <template #default="{ node, data }">
-              <span class="custom-tree-node">
-                <span class="node-icon">
-                  <i v-if="data.type === 'building'" class="el-icon-office-building"></i>
-                  <i v-else-if="data.type === 'floor'" class="el-icon-house"></i>
+            <div 
+              class="org-tab" 
+              :class="{ active: currentTreeType === 'gateway' }"
+              @click="currentTreeType = 'gateway'"
+            >
+              <i class="el-icon-connection"></i>
+              网关
+            </div>
+            <div 
+              class="org-tab" 
+              :class="{ active: currentTreeType === 'company' }"
+              @click="currentTreeType = 'company'"
+            >
+              <i class="el-icon-suitcase"></i>
+              公司
+            </div>
+          </div>
+
+          <div class="tree-container">
+            <el-tree
+              v-show="currentTreeType === 'building'"
+              :data="buildingTreeData"
+              :props="defaultProps"
+              @node-click="handleNodeClick"
+              default-expand-all
+              node-key="id"
+              highlight-current
+              :expand-on-click-node="false"
+              class="custom-tree"
+            >
+              <template #default="{ node, data }">
+                <span class="custom-tree-node">
+                  <span class="node-icon">
+                    <i v-if="data.type === 'building'" class="el-icon-office-building" style="color: #dcb67a;"></i>
+                    <i v-else-if="data.type === 'floor'" class="el-icon-office-building" style="color: #dcb67a;"></i>
+                    <i v-else-if="data.type === 'device'" class="el-icon-monitor" style="color: #7ab0dc;"></i>
+                  </span>
+                  <span class="node-label">{{ node.label }}</span>
+                  <span v-if="data.type === 'device'" class="node-status" :class="data.status">
+                    <el-tag size="mini" :type="getStatusType(data.status)">
+                      {{ getStatusText(data.status) }}
+                    </el-tag>
+                  </span>
                 </span>
-                <span class="node-label">{{ node.label }}</span>
-              </span>
-            </template>
-          </el-tree>
-        </el-card>
+              </template>
+            </el-tree>
+
+            <el-tree
+              v-show="currentTreeType === 'gateway'"
+              :data="gatewayTreeData"
+              :props="defaultProps"
+              @node-click="handleNodeClick"
+              default-expand-all
+              node-key="id"
+              highlight-current
+              :expand-on-click-node="false"
+              class="custom-tree"
+            >
+              <template #default="{ node, data }">
+                <span class="custom-tree-node">
+                  <span class="node-icon">
+                    <i v-if="data.type === 'gateway'" class="el-icon-connection" style="color: #7adcb6;"></i>
+                    <i v-else-if="data.type === 'device'" class="el-icon-monitor" style="color: #7ab0dc;"></i>
+                  </span>
+                  <span class="node-label">{{ node.label }}</span>
+                  <span v-if="data.type === 'device'" class="node-status" :class="data.status">
+                    <el-tag size="mini" :type="getStatusType(data.status)">
+                      {{ getStatusText(data.status) }}
+                    </el-tag>
+                  </span>
+                </span>
+              </template>
+            </el-tree>
+
+            <el-tree
+              v-show="currentTreeType === 'company'"
+              :data="companyTreeData"
+              :props="defaultProps"
+              @node-click="handleNodeClick"
+              default-expand-all
+              node-key="id"
+              highlight-current
+              :expand-on-click-node="false"
+              class="custom-tree"
+            >
+              <template #default="{ node, data }">
+                <span class="custom-tree-node">
+                  <span class="node-icon">
+                    <i v-if="data.type === 'company'" class="el-icon-suitcase" style="color: #dcb67a;"></i>
+                    <i v-else-if="data.type === 'department'" class="el-icon-suitcase" style="color: #dcb67a;"></i>
+                    <i v-else-if="data.type === 'device'" class="el-icon-monitor" style="color: #7ab0dc;"></i>
+                  </span>
+                  <span class="node-label">{{ node.label }}</span>
+                  <span v-if="data.type === 'device'" class="node-status" :class="data.status">
+                    <el-tag size="mini" :type="getStatusType(data.status)">
+                      {{ getStatusText(data.status) }}
+                    </el-tag>
+                  </span>
+                </span>
+              </template>
+            </el-tree>
+          </div>
+        </div>
       </el-col>
 
       <!-- 右侧设备卡片 -->
       <el-col :span="20">
-        <el-row :gutter="20">
-          <el-col :span="8" v-for="device in deviceList" :key="device.id">
+        <el-row :gutter="16">
+          <el-col :xs="24" :sm="12" :md="8" :lg="6" v-for="device in deviceList" :key="device.id">
             <el-card class="device-card" :class="{'running': device.status === 'running'}">
               <div class="device-header">
-                <!-- 添加复选框 -->
                 <el-checkbox 
                   v-model="device.selected"
                   @change="handleDeviceSelect"
@@ -105,6 +187,10 @@
                   <div class="info-item">
                     <span class="label">运行时间：</span>
                     <span class="value">{{ device.running_time }}H</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="label">风速：</span>
+                    <span class="value">{{ getFanSpeedText(device.fan_speed) }}</span>
                   </div>
                 </div>
                 <div class="device-status">
@@ -140,10 +226,20 @@
         </el-form-item>
         <el-form-item label="运行模式">
           <el-radio-group v-model="controlForm.mode">
+            <el-radio label="auto">自动</el-radio>
             <el-radio label="cooling">制冷</el-radio>
             <el-radio label="heating">制热</el-radio>
             <el-radio label="fan">送风</el-radio>
             <el-radio label="dehumidify">除湿</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="风速">
+          <el-radio-group v-model="controlForm.fan_speed">
+            <el-radio :label="0">自动</el-radio>
+            <el-radio :label="1">高速</el-radio>
+            <el-radio :label="2">中速</el-radio>
+            <el-radio :label="4">低速</el-radio>
+            <el-radio :label="6">微风</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
@@ -186,10 +282,20 @@
         </el-form-item>
         <el-form-item label="运行模式">
           <el-radio-group v-model="batchControlForm.mode">
+            <el-radio label="auto">自动</el-radio>
             <el-radio label="cooling">制冷</el-radio>
             <el-radio label="heating">制热</el-radio>
             <el-radio label="fan">送风</el-radio>
             <el-radio label="dehumidify">除湿</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="风速">
+          <el-radio-group v-model="batchControlForm.fan_speed">
+            <el-radio :label="0">自动</el-radio>
+            <el-radio :label="1">高速</el-radio>
+            <el-radio :label="2">中速</el-radio>
+            <el-radio :label="4">低速</el-radio>
+            <el-radio :label="6">微风</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
@@ -217,7 +323,7 @@
         <el-form-item label="所在楼层" prop="floor_id">
           <el-select v-model="editForm.floor_id" placeholder="请选择楼层">
             <el-option
-              v-for="building in floorData"
+              v-for="building in buildingTreeData"
               :key="building.id"
               :label="building.label"
               :value="building.id"
@@ -230,32 +336,6 @@
               </template>
             </el-option>
           </el-select>
-        </el-form-item>
-        <el-form-item label="运行状态" prop="status">
-          <el-switch
-            v-model="editForm.status"
-            :active-value="'running'"
-            :inactive-value="'stopped'"
-            active-text="运行"
-            inactive-text="停止"
-          />
-        </el-form-item>
-        <el-form-item label="设置温度" prop="set_temp">
-          <el-input-number
-            v-model="editForm.set_temp"
-            :min="16"
-            :max="30"
-            :step="0.5"
-            controls-position="right"
-          />
-        </el-form-item>
-        <el-form-item label="运行模式" prop="mode">
-          <el-radio-group v-model="editForm.mode">
-            <el-radio label="cooling">制冷</el-radio>
-            <el-radio label="heating">制热</el-radio>
-            <el-radio label="fan">送风</el-radio>
-            <el-radio label="dehumidify">除湿</el-radio>
-          </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -295,6 +375,10 @@ export default {
   data() {
     return {
       isDarkTheme: true,
+      currentTreeType: 'building',
+      buildingTreeData: [],
+      gatewayTreeData: [],
+      companyTreeData: [],
       listQuery: {
         name: '',
         status: ''
@@ -304,7 +388,6 @@ export default {
         { key: 'stopped', label: '停止' },
         { key: 'fault', label: '故障' }
       ],
-      floorData: [],
       defaultProps: {
         children: 'children',
         label: 'label'
@@ -314,16 +397,17 @@ export default {
       controlForm: {
         running: true,
         temp: 25,
-        mode: 'cooling'
+        mode: 'cooling',
+        fan_speed: 0
       },
       currentDevice: null,
-      // 添加批量删除相关的数据
       batchDeleteDialogVisible: false,
       batchControlDialogVisible: false,
       batchControlForm: {
         running: true,
         temp: 25,
-        mode: 'cooling'
+        mode: 'cooling',
+        fan_speed: 0
       },
       editDialogVisible: false,
       deleteDialogVisible: false,
@@ -331,10 +415,7 @@ export default {
         id: '',
         name: '',
         code: '',
-        floor_id: '',
-        status: 'stopped',
-        set_temp: 25,
-        mode: 'cooling'
+        floor_id: ''
       },
       editRules: {
         name: [
@@ -346,16 +427,42 @@ export default {
         floor_id: [
           { required: true, message: '请选择所在楼层', trigger: 'blur' }
         ]
-      }
+      },
+      fanSpeedMap: {
+        0: '自动',
+        1: '高速',
+        2: '中速',
+        4: '低速',
+        6: '微风'
+      },
+      selectedBuilding: null,
+      selectedFloor: null,
+      selectedGateway: null,
+      selectedCompany: null,
+      selectedDepartment: null,
+      currentFloors: [],
+      currentDepartments: []
     }
   },
   computed: {
     selectedDeviceCount() {
       return this.deviceList.filter(device => device.selected).length
+    },
+    currentTreeData() {
+      switch (this.currentTreeType) {
+        case 'building':
+          return this.buildingTreeData
+        case 'gateway':
+          return this.gatewayTreeData
+        case 'company':
+          return this.companyTreeData
+        default:
+          return []
+      }
     }
   },
   created() {
-    this.fetchBuildingTree()
+    this.fetchAllTrees()
     this.fetchDeviceList()
   },
   methods: {
@@ -364,7 +471,6 @@ export default {
     },
 
     handleDeviceSelect() {
-      // 触发视图更新
       this.deviceList = [...this.deviceList]
     },
     
@@ -400,24 +506,34 @@ export default {
 
     handleNodeClick(data) {
       console.log('点击的节点数据:', data)
-      if (data && data.type === 'floor') {
-        // 直接使用楼层ID，不需要解析
-        const floorId = data.id
-        console.log('点击的楼层:', {
-          id: floorId,
-          name: data.label,
-          floor_number: data.floor_number,
-          building_id: data.building_id
-        })
-        
-        // 调用设备列表接口
-        this.fetchDeviceList({
-          id: floorId,
-          building_id: data.building_id
-        })
-      } else {
-        console.log('非楼层节点，忽略')
+      let queryParams = {}
+      
+      switch (data.type) {
+        case 'floor':
+          queryParams = {
+            floor_id: data.id,
+            building_id: data.building_id
+          }
+          break
+        case 'device':
+          queryParams = {
+            device_id: data.label
+          }
+          break
+        case 'department':
+          queryParams = {
+            department_id: data.id,
+            company_id: data.company_id
+          }
+          break
+        case 'gateway':
+          queryParams = {
+            uuid: data.label
+          }
+          break
       }
+      
+      this.fetchDeviceList(queryParams)
     },
     handleCommand(command, device) {
       this.currentDevice = device
@@ -426,10 +542,7 @@ export default {
           id: device.id,
           name: device.name,
           code: device.device_id,
-          floor_id: device.floor_id,
-          status: device.status,
-          set_temp: device.set_temp,
-          mode: device.mode
+          floor_id: device.floor_id
         }
         this.editDialogVisible = true
       } else if (command === 'delete') {
@@ -438,7 +551,8 @@ export default {
         this.controlForm = {
           running: device.status === 'running',
           temp: device.set_temp,
-          mode: device.mode
+          mode: device.mode,
+          fan_speed: device.fan_speed
         }
         this.dialogVisible = true
       }
@@ -450,14 +564,14 @@ export default {
           control: {
             running: this.controlForm.running,
             temp: this.controlForm.temp,
-            mode: this.controlForm.mode
+            mode: this.controlForm.mode,
+            fan_speed: this.controlForm.fan_speed
           }
         })
         
         if (response.data.message) {
           this.$message.success('控制命令发送成功')
           this.dialogVisible = false
-          // 更新设备状态
           const updatedDevices = response.data.devices
           if (updatedDevices && updatedDevices.length > 0) {
             this.deviceList = this.deviceList.map(device => {
@@ -475,49 +589,26 @@ export default {
         this.$message.error('控制失败：' + error.message)
       }
     },
-    async fetchBuildingTree() {
+    async fetchAllTrees() {
       try {
-        console.log('正在请求建筑数据...')
-        const response = await get('/api/device/building/tree/')
-        console.log('建筑数据响应:', response)
-        
-        // 确保数据是数组
-        if (Array.isArray(response.data)) {
-          // 确保每个节点都有必要的属性
-          const processedData = response.data.map(building => ({
-            id: building.id,
-            label: building.label || building.name,
-            type: building.type || 'building',
-            children: Array.isArray(building.children) ? building.children.map(floor => ({
-              id: floor.id,
-              label: floor.label || floor.name,
-              type: floor.type || 'floor',
-              floor_number: floor.floor_number
-            })) : []
-          }))
-          console.log('处理后的楼层数据:', processedData)
-          this.floorData = processedData
-        } else {
-          console.error('建筑数据格式错误:', response.data)
-          this.$message.error('建筑数据格式错误')
-          this.floorData = []
-        }
+        const response = await get('/api/device/all/trees/')
+        this.buildingTreeData = response.data.building_tree
+        this.gatewayTreeData = response.data.gateway_tree
+        this.companyTreeData = response.data.company_tree
       } catch (error) {
-        console.error('获取建筑数据失败:', error)
-        this.$message.error('获取建筑数据失败')
-        this.floorData = []
+        console.error('获取组织架构数据失败:', error)
+        this.$message.error('获取组织架构数据失败')
       }
     },
-    async fetchDeviceList(floor) {
+    async fetchDeviceList(params = {}) {
       try {
         let queryParams = new URLSearchParams()
         
-        if (floor) {
-          queryParams.append('floor_id', floor.id)
-          if (floor.building_id) {
-            queryParams.append('building_id', floor.building_id)
+        Object.entries(params).forEach(([key, value]) => {
+          if (value) {
+            queryParams.append(key, value)
           }
-        }
+        })
         
         if (this.listQuery.name) {
           queryParams.append('name', this.listQuery.name)
@@ -527,7 +618,6 @@ export default {
         }
         
         const response = await get(`/api/device/filter/?${queryParams.toString()}`)
-        // 添加selected属性
         this.deviceList = response.data.map(device => ({
           ...device,
           selected: false
@@ -555,10 +645,10 @@ export default {
     },
     getModeIcon(mode) {
       const icons = {
-        cooling: 'Sunny',      // 制冷用太阳图标
-        heating: 'Sunrise',    // 制热用日出图标
-        fan: 'WindPower',      // 送风用风力图标
-        dehumidify: 'Cloudy'   // 除湿用多云图标
+        cooling: 'Sunny',
+        heating: 'Sunrise',
+        fan: 'WindPower',
+        dehumidify: 'Cloudy'
       }
       return icons[mode] || 'Setting'
     },
@@ -572,10 +662,9 @@ export default {
       return texts[mode] || '未知'
     },
     refreshTree() {
-      this.fetchBuildingTree()
+      this.fetchAllTrees()
     },
     getDeviceCount(data) {
-      // 添加调试日志
       console.log('楼层数据:', data)
       console.log('设备列表:', this.deviceList)
       console.log('当前楼层号:', data.floor_number)
@@ -595,21 +684,18 @@ export default {
           control: {
             running: this.batchControlForm.running,
             temp: this.batchControlForm.temp,
-            mode: this.batchControlForm.mode
+            mode: this.batchControlForm.mode,
+            fan_speed: this.batchControlForm.fan_speed
           }
         })
         
-        // 更新本地设备状态
-        if (response.data.devices) {
-          const updatedDevices = response.data.devices
-          this.deviceList = this.deviceList.map(device => {
-            const updatedDevice = updatedDevices.find(d => d.id === device.id)
-            if (updatedDevice) {
-              return { ...updatedDevice, selected: false }
-            }
-            return device
-          })
-        }
+        this.deviceList = this.deviceList.map(device => {
+          const updatedDevice = response.data.devices.find(d => d.id === device.id)
+          if (updatedDevice) {
+            return { ...updatedDevice, selected: false }
+          }
+          return device
+        })
         
         this.$message.success('批量控制成功')
         this.batchControlDialogVisible = false
@@ -623,10 +709,7 @@ export default {
         const response = await put(`/api/device/device/${this.editForm.id}/`, {
           name: this.editForm.name,
           device_id: this.editForm.code,
-          location: this.editForm.floor_id,
-          set_temp: this.editForm.set_temp,
-          mode: this.editForm.mode,
-          status: this.editForm.status
+          floor_id: this.editForm.floor_id
         })
         
         console.log('修改设备响应:', response)
@@ -651,7 +734,6 @@ export default {
     },
     async handleDeleteConfirm() {
       try {
-        // 使用 DELETE 方法和正确的路径
         await del(`/api/device/device/${this.currentDevice.id}/`)
         
         this.$message.success('删除成功')
@@ -660,6 +742,43 @@ export default {
       } catch (error) {
         this.$message.error('删除失败：' + (error.response?.data?.message || error.message))
       }
+    },
+    getFanSpeedText(fanSpeed) {
+      return this.fanSpeedMap[fanSpeed] || '未知'
+    },
+    getModeType(mode) {
+      const typeMap = {
+        'auto': 'info',
+        'cooling': 'primary',
+        'heating': 'danger',
+        'fan': 'success',
+        'dehumidify': 'warning'
+      }
+      return typeMap[mode] || ''
+    },
+    handleBuildingChange(buildingId) {
+      this.selectedFloor = null;
+      const building = this.buildingTreeData.find(b => b.id === buildingId);
+      this.currentFloors = building ? building.children : [];
+      this.fetchDeviceList({ building_id: buildingId });
+    },
+    handleFloorChange(floorId) {
+      this.fetchDeviceList({ floor_id: floorId });
+    },
+    handleGatewayChange(gatewayId) {
+      const gateway = this.gatewayTreeData.find(g => g.id === gatewayId);
+      if (gateway) {
+        this.fetchDeviceList({ uuid: gateway.label });
+      }
+    },
+    handleCompanyChange(companyId) {
+      this.selectedDepartment = null;
+      const company = this.companyTreeData.find(c => c.id === companyId);
+      this.currentDepartments = company ? company.children : [];
+      this.fetchDeviceList({ company_id: companyId });
+    },
+    handleDepartmentChange(departmentId) {
+      this.fetchDeviceList({ department_id: departmentId });
     }
   }
 }
@@ -667,47 +786,9 @@ export default {
 
 <style lang="scss" scoped>
 .app-container {
-  padding: 20px;
   min-height: 100vh;
-  background-color: #f0f2f5;
-  transition: all 0.3s;
-
-  &.dark-theme {
-    background-color: #1a2942;
-    color: #fff;
-
-    .el-card {
-      background-color: #243656;
-      border: none;
-      color: #fff;
-
-      ::v-deep .el-card__header {
-        border-bottom: 1px solid #334769;
-      }
-    }
-
-    .device-card {
-      .device-header {
-        .device-checkbox {
-          ::v-deep .el-checkbox__inner {
-            border-color: #79bbff;  /* 使用深色主题的次要颜色 */
-            
-            &::after {
-              border-color: #79bbff;  /* 对勾颜色 */
-            }
-          }
-
-          ::v-deep .el-checkbox__input.is-checked .el-checkbox__inner {
-            border-color: #79bbff;
-          }
-
-          ::v-deep .el-checkbox__inner:hover {
-            border-color: #79bbff;
-          }
-        }
-      }
-    }
-  }
+  background-color: var(--background-color);
+  padding: 20px;
 }
 
 .header-container {
@@ -721,206 +802,154 @@ export default {
   margin-left: 20px;
 }
 
-.tree-card {
-  height: calc(100vh - 140px);
-  overflow-y: auto;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-
-  &.dark {
-    background-color: #1e1e1e;
-    
-    .tree-header {
-      color: #ffffff;
-    }
-    
-    ::v-deep .el-tree {
-      background-color: transparent;
-      color: #ffffff;
-    }
-  }
-
-  .tree-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 16px;
-    font-weight: 500;
-
-    i {
-      margin-right: 8px;
-    }
-  }
-
-  ::v-deep .el-tree {
-    background: transparent;
-    color: inherit;
-
-    .el-tree-node__content {
-      height: 40px;
-      border-radius: 4px;
-      margin: 4px 0;
-      transition: all 0.3s;
-
-      &:hover {
-        background-color: rgba(64, 158, 255, 0.1);
-      }
-
-      &.is-current {
-        background-color: #409eff;
-        color: #ffffff;
-      }
-    }
-  }
+.main-content {
+  margin-top: 20px;
+  min-height: calc(100vh - 120px);
+  display: flex;
 }
 
-.custom-tree-node {
-  flex: 1;
+.org-structure {
+  background-color: var(--tree-background);
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  height: 100%;
   display: flex;
-  align-items: center;
-  font-size: 14px;
-  padding-right: 8px;
-
-  .node-icon {
-    margin-right: 8px;
-    width: 24px;
-    text-align: center;
-
-    i {
-      font-size: 16px;
+  flex-direction: column;
+  
+  .org-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    
+    .org-tab {
+      flex: 1;
+      padding: 10px;
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      border-bottom: 2px solid transparent;
+      transition: all 0.3s;
+      color: var(--text-color);
+      
+      i {
+        font-size: 18px;
+      }
+      
+      &:hover {
+        color: var(--primary-color);
+      }
+      
+      &.active {
+        color: var(--primary-color);
+        border-bottom-color: var(--primary-color);
+        background-color: rgba(64, 158, 255, 0.1);
+      }
     }
   }
-
-  .node-label {
+  
+  .tree-container {
     flex: 1;
+    padding: 12px;
+    overflow-y: auto;
+
+    .custom-tree {
+      background-color: transparent;
+      color: var(--text-color);
+      
+      ::v-deep .el-tree-node__content {
+        background-color: transparent;
+        height: 28px;
+        
+        &:hover {
+          background-color: var(--tree-hover-background);
+        }
+        
+        &.is-current {
+          background-color: var(--tree-active-background);
+        }
+      }
+    }
   }
 }
 
 .device-card {
-  margin-bottom: 20px;
-  position: relative;
+  margin-bottom: 16px;
+  transition: all 0.3s;
+  background-color: var(--card-background);
+  border: 1px solid var(--border-color);
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.2);
+  }
   
   &.running {
-    border: 1px solid #67C23A;
+    border-color: var(--primary-color);
   }
   
   .device-header {
-    position: relative;
-    padding-left: 35px;  /* 为复选框留出空间 */
-    margin-bottom: 15px;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    
-    .device-checkbox {
-      position: absolute;
-      top: 5px;  /* 调整位置往上移 */
-      left: 5px;
-      z-index: 1;
-
-      /* 自定义复选框样式 */
-      ::v-deep .el-checkbox__inner {
-        width: 20px;  /* 增大复选框大小 */
-        height: 20px;
-        background-color: transparent;  /* 设置透明背景 */
-        border: 2px solid #409EFF;  /* 加粗边框并使用主题色 */
-        border-radius: 4px;
-
-        &::after {
-          height: 12px;  /* 调整对勾大小 */
-          left: 6px;
-          width: 5px;
-          border-width: 2px;
-        }
-      }
-
-      /* 选中状态样式 */
-      ::v-deep .el-checkbox__input.is-checked .el-checkbox__inner {
-        background-color: transparent;
-        border-color: #409EFF;
-      }
-
-      /* 鼠标悬停状态 */
-      ::v-deep .el-checkbox__inner:hover {
-        border-color: #409EFF;
-      }
-    }
+    gap: 8px;
     
     .device-name {
-      font-size: 16px;
-      font-weight: bold;
-    }
-
-    .more-icon {
-      font-size: 20px;
-      color: #909399;
-      cursor: pointer;
-      padding: 5px;
-      border-radius: 4px;
-      transition: all 0.3s;
-
-      &:hover {
-        background-color: rgba(144, 147, 153, 0.1);
-      }
-    }
-  }
-
-  .device-content {
-    text-align: center;
-  }
-
-  .temp-display {
-    margin-bottom: 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    
-    .temp-label {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      color: #909399;
+      flex: 1;
       font-size: 14px;
-      margin-bottom: 5px;
-      
-      .el-icon {
-        font-size: 16px;
-      }
-    }
-
-    .temp-value {
-      font-size: 32px;
-      color: #f4a261;
       font-weight: 500;
+      color: var(--text-color);
     }
   }
-
-  .device-info {
-    margin-bottom: 20px;
-
-    .info-item {
+  
+  .device-content {
+    .temp-display {
+      text-align: center;
+      margin-bottom: 16px;
+      
+      .temp-label {
+        color: var(--text-color);
+        margin-bottom: 8px;
+      }
+      
+      .temp-value {
+        font-size: 28px;
+        color: #f4a261;
+        font-weight: 500;
+      }
+    }
+    
+    .device-info {
+      margin-bottom: 16px;
+      
+      .info-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        font-size: 13px;
+        
+        .label {
+          color: var(--text-color);
+          opacity: 0.7;
+        }
+        
+        .value {
+          color: var(--text-color);
+        }
+      }
+    }
+    
+    .device-status {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 8px;
-      color: #909399;
-
-      .value {
-        font-weight: 500;
-        color: inherit;
+      align-items: center;
+      
+      .mode-icons {
+        color: var(--text-color);
       }
-    }
-  }
-
-  .device-status {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-top: 15px;
-    border-top: 1px solid #ebeef5;
-
-    .mode-icons {
-      font-size: 20px;
-      color: #409eff;
     }
   }
 }
@@ -937,7 +966,6 @@ export default {
   }
 }
 
-// 浅色主题样式
 :root {
   --primary-color: #67c23a;
   --secondary-color: #409eff;
@@ -945,9 +973,11 @@ export default {
   --card-background: #fff;
   --text-color: #303133;
   --border-color: #ebeef5;
+  --tree-background: #e8f5e9;  // 浅绿色背景
+  --tree-hover-background: #c8e6c9;
+  --tree-active-background: #a5d6a7;
 }
 
-// 深色主题样式
 .dark-theme {
   --primary-color: #85ce61;
   --secondary-color: #79bbff;
@@ -955,5 +985,92 @@ export default {
   --card-background: #243656;
   --text-color: #fff;
   --border-color: #334769;
+  --tree-background: #243656;  // 与卡片背景相同
+  --tree-hover-background: #2c4166;
+  --tree-active-background: #334769;
+  
+  .el-card {
+    background-color: var(--card-background);
+    border-color: var(--border-color);
+    color: var(--text-color);
+    
+    &:hover {
+      box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.4);
+    }
+  }
+  
+  .el-checkbox__inner {
+    background-color: transparent;
+    border-color: var(--border-color);
+  }
+  
+  .el-checkbox__input.is-checked .el-checkbox__inner {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+  }
+}
+
+// 修改选择器的样式以适应深色主题
+::v-deep .el-select {
+  .el-input {
+    .el-input__inner {
+      background-color: #2d2d2d;
+      border-color: #484848;
+      color: #c4c4c4;
+      height: 28px;
+      line-height: 28px;
+      font-size: 12px;
+
+      &:hover, &:focus {
+        border-color: #409EFF;
+      }
+    }
+  }
+}
+
+::v-deep .el-select-dropdown {
+  background-color: #252526;
+  border: 1px solid #484848;
+
+  .el-select-dropdown__item {
+    color: #c4c4c4;
+    font-size: 12px;
+
+    &.selected {
+      background-color: #37373d;
+      color: #409EFF;
+    }
+
+    &:hover {
+      background-color: #2c2c2c;
+    }
+  }
+}
+
+.org-selector {
+  margin: 20px 0;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  
+  .view-selector {
+    width: 150px;
+  }
+  
+  .org-select {
+    width: 200px;
+  }
+}
+
+.dark-theme {
+  .org-selector {
+    ::v-deep .el-select {
+      .el-input__inner {
+        background-color: #243656;
+        border-color: #334769;
+        color: #fff;
+      }
+    }
+  }
 }
 </style>
