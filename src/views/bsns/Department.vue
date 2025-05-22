@@ -198,7 +198,7 @@
                     {{ getStatusText(device.status) }}
                   </el-tag>
                   <div class="mode-icons">
-                    <el-icon :title="getModeText(device.mode)">
+                    <el-icon :class="['mode-icon', device.mode]" :title="getModeText(device.mode)">
                       <component :is="getModeIcon(device.mode)" />
                     </el-icon>
                   </div>
@@ -215,17 +215,20 @@
       v-model="dialogVisible"
       title="设备控制"
       width="30%"
-      custom-class="control-dialog"
+      custom-class="single-device-control-dialog"
     >
       <el-form :model="controlForm" label-width="100px">
         <el-form-item label="运行状态">
-          <el-switch v-model="controlForm.running"/>
+          <el-switch v-model="controlForm.running" @change="handleRunningChange"/>
         </el-form-item>
-        <el-form-item label="设置温度">
-          <el-input-number v-model="controlForm.temp" :min="16" :max="30" :step="0.5"/>
+        <el-form-item label="设置温度" class="temp-control">
+          <div style="display: flex; align-items: center; width: 100%;">
+            <el-input-number v-model="controlForm.temp" :min="16" :max="30" :step="0.5" style="margin-right: 60px;"/>
+            <el-button type="primary" size="small" @click="handleTempSubmit">确定</el-button>
+          </div>
         </el-form-item>
         <el-form-item label="运行模式">
-          <el-radio-group v-model="controlForm.mode">
+          <el-radio-group v-model="controlForm.mode" @change="handleModeChange">
             <el-radio label="auto">自动</el-radio>
             <el-radio label="cooling">制冷</el-radio>
             <el-radio label="heating">制热</el-radio>
@@ -234,7 +237,7 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="风速">
-          <el-radio-group v-model="controlForm.fan_speed">
+          <el-radio-group v-model="controlForm.fan_speed" @change="handleFanSpeedChange">
             <el-radio :label="0">自动</el-radio>
             <el-radio :label="1">高速</el-radio>
             <el-radio :label="2">中速</el-radio>
@@ -245,8 +248,7 @@
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="dialogVisible = false">取 消</el-button>
-          <el-button type="primary" @click="handleControlSubmit">确 定</el-button>
+          <el-button @click="dialogVisible = false">关闭</el-button>
         </span>
       </template>
     </el-dialog>
@@ -311,7 +313,7 @@
     <el-dialog
       v-model="editDialogVisible"
       title="修改设备"
-      width="30%"
+      width="40%"
     >
       <el-form :model="editForm" :rules="editRules" ref="editFormRef" label-width="100px">
         <el-form-item label="设备名称" prop="name">
@@ -320,22 +322,50 @@
         <el-form-item label="设备编号" prop="code">
           <el-input v-model="editForm.code" placeholder="请输入设备编号"/>
         </el-form-item>
-        <el-form-item label="所在楼层" prop="floor_id">
-          <el-select v-model="editForm.floor_id" placeholder="请选择楼层">
+        <el-form-item label="设备UUID">
+          <el-input v-model="editForm.uuid" placeholder="设备UUID" disabled/>
+        </el-form-item>
+        <el-form-item label="所属公司" prop="company_id">
+          <el-select 
+            v-model="editForm.company_id" 
+            placeholder="请选择公司"
+            @change="handleCompanyChangeInEdit"
+          >
             <el-option
-              v-for="building in buildingTreeData"
-              :key="building.id"
-              :label="building.label"
-              :value="building.id"
-            >
-              <template v-for="floor in building.children" :key="floor.id">
-                <el-option
-                  :label="building.label + ' - ' + floor.label"
-                  :value="floor.id"
-                />
-              </template>
-            </el-option>
+              v-for="company in companyTreeData"
+              :key="company.id"
+              :label="company.label"
+              :value="company.id"
+            />
           </el-select>
+        </el-form-item>
+        <el-form-item label="所属部门" prop="department_id">
+          <el-select 
+            v-model="editForm.department_id" 
+            placeholder="请选择部门"
+            :disabled="!editForm.company_id"
+          >
+            <el-option
+              v-for="department in currentDepartments"
+              :key="department.id"
+              :label="department.label"
+              :value="department.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="所在楼层" prop="floor_id">
+          <el-cascader
+            v-model="editForm.floor_id"
+            :options="buildingTreeData"
+            :props="{
+              checkStrictly: true,
+              label: 'label',
+              value: 'id',
+              children: 'children'
+            }"
+            placeholder="请选择楼层"
+            clearable
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -415,7 +445,10 @@ export default {
         id: '',
         name: '',
         code: '',
-        floor_id: ''
+        floor_id: '',
+        company_id: '',
+        department_id: '',
+        uuid: ''
       },
       editRules: {
         name: [
@@ -426,6 +459,12 @@ export default {
         ],
         floor_id: [
           { required: true, message: '请选择所在楼层', trigger: 'blur' }
+        ],
+        company_id: [
+          { required: true, message: '请选择所属公司', trigger: 'blur' }
+        ],
+        department_id: [
+          { required: true, message: '请选择所属部门', trigger: 'blur' }
         ]
       },
       fanSpeedMap: {
@@ -542,7 +581,16 @@ export default {
           id: device.id,
           name: device.name,
           code: device.device_id,
-          floor_id: device.floor_id
+          floor_id: device.floor_id,
+          company_id: device.company_id,
+          department_id: device.department_id,
+          uuid: device.uuid
+        }
+        if (device.company_id) {
+          const company = this.companyTreeData.find(c => c.id === device.company_id)
+          if (company) {
+            this.currentDepartments = company.children || []
+          }
         }
         this.editDialogVisible = true
       } else if (command === 'delete') {
@@ -648,7 +696,8 @@ export default {
         cooling: 'Sunny',
         heating: 'Sunrise',
         fan: 'WindPower',
-        dehumidify: 'Cloudy'
+        dehumidify: 'Cloudy',
+        auto: 'Setting'
       }
       return icons[mode] || 'Setting'
     },
@@ -657,9 +706,10 @@ export default {
         cooling: '制冷',
         heating: '制热',
         fan: '送风',
-        dehumidify: '除湿'
+        dehumidify: '除湿',
+        auto: '自动'
       }
-      return texts[mode] || '未知'
+      return texts[mode] || '自动'
     },
     refreshTree() {
       this.fetchAllTrees()
@@ -709,7 +759,10 @@ export default {
         const response = await put(`/api/device/device/${this.editForm.id}/`, {
           name: this.editForm.name,
           device_id: this.editForm.code,
-          floor_id: this.editForm.floor_id
+          floor_id: this.editForm.floor_id,
+          company_id: this.editForm.company_id,
+          department_id: this.editForm.department_id,
+          uuid: this.editForm.uuid
         })
         
         console.log('修改设备响应:', response)
@@ -779,6 +832,128 @@ export default {
     },
     handleDepartmentChange(departmentId) {
       this.fetchDeviceList({ department_id: departmentId });
+    },
+    handleCompanyChangeInEdit(companyId) {
+      this.editForm.company_id = companyId;
+      this.fetchDeviceList({ company_id: companyId });
+    },
+    async handleRunningChange(value) {
+      try {
+        const response = await post('/api/device/device/batch-control/', {
+          device_ids: [this.currentDevice.id],
+          control: {
+            running: value
+          }
+        })
+        
+        if (response.data.message) {
+          this.$message.success('运行状态修改成功')
+          const updatedDevices = response.data.devices
+          if (updatedDevices && updatedDevices.length > 0) {
+            this.deviceList = this.deviceList.map(device => {
+              const updatedDevice = updatedDevices.find(d => d.id === device.id)
+              if (updatedDevice) {
+                return { ...device, ...updatedDevice }
+              }
+              return device
+            })
+          }
+        } else {
+          this.$message.error(response.data.error || '修改失败')
+          this.controlForm.running = !value // 恢复原值
+        }
+      } catch (error) {
+        this.$message.error('修改失败：' + error.message)
+        this.controlForm.running = !value // 恢复原值
+      }
+    },
+    async handleTempSubmit() {
+      try {
+        const response = await post('/api/device/device/batch-control/', {
+          device_ids: [this.currentDevice.id],
+          control: {
+            temp: this.controlForm.temp
+          }
+        })
+        
+        if (response.data.message) {
+          this.$message.success('温度设置成功')
+          const updatedDevices = response.data.devices
+          if (updatedDevices && updatedDevices.length > 0) {
+            this.deviceList = this.deviceList.map(device => {
+              const updatedDevice = updatedDevices.find(d => d.id === device.id)
+              if (updatedDevice) {
+                return { ...device, ...updatedDevice }
+              }
+              return device
+            })
+          }
+        } else {
+          this.$message.error(response.data.error || '设置失败')
+        }
+      } catch (error) {
+        this.$message.error('设置失败：' + error.message)
+      }
+    },
+    async handleModeChange(value) {
+      try {
+        const response = await post('/api/device/device/batch-control/', {
+          device_ids: [this.currentDevice.id],
+          control: {
+            mode: value
+          }
+        })
+        
+        if (response.data.message) {
+          this.$message.success('运行模式修改成功')
+          const updatedDevices = response.data.devices
+          if (updatedDevices && updatedDevices.length > 0) {
+            this.deviceList = this.deviceList.map(device => {
+              const updatedDevice = updatedDevices.find(d => d.id === device.id)
+              if (updatedDevice) {
+                return { ...device, ...updatedDevice }
+              }
+              return device
+            })
+          }
+        } else {
+          this.$message.error(response.data.error || '修改失败')
+          this.controlForm.mode = this.currentDevice.mode // 恢复原值
+        }
+      } catch (error) {
+        this.$message.error('修改失败：' + error.message)
+        this.controlForm.mode = this.currentDevice.mode // 恢复原值
+      }
+    },
+    async handleFanSpeedChange(value) {
+      try {
+        const response = await post('/api/device/device/batch-control/', {
+          device_ids: [this.currentDevice.id],
+          control: {
+            fan_speed: value
+          }
+        })
+        
+        if (response.data.message) {
+          this.$message.success('风速修改成功')
+          const updatedDevices = response.data.devices
+          if (updatedDevices && updatedDevices.length > 0) {
+            this.deviceList = this.deviceList.map(device => {
+              const updatedDevice = updatedDevices.find(d => d.id === device.id)
+              if (updatedDevice) {
+                return { ...device, ...updatedDevice }
+              }
+              return device
+            })
+          }
+        } else {
+          this.$message.error(response.data.error || '修改失败')
+          this.controlForm.fan_speed = this.currentDevice.fan_speed // 恢复原值
+        }
+      } catch (error) {
+        this.$message.error('修改失败：' + error.message)
+        this.controlForm.fan_speed = this.currentDevice.fan_speed // 恢复原值
+      }
     }
   }
 }
@@ -948,7 +1123,35 @@ export default {
       align-items: center;
       
       .mode-icons {
-        color: var(--text-color);
+        .mode-icon {
+          font-size: 26px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          
+          &:hover {
+            transform: scale(1.1);
+          }
+          
+          &.cooling {
+            color: #409EFF !important;
+          }
+          
+          &.heating {
+            color: #F56C6C !important;
+          }
+          
+          &.fan {
+            color: #67C23A !important;
+          }
+          
+          &.dehumidify {
+            color: #E6A23C !important;
+          }
+          
+          &.auto {
+            color: #909399 !important;
+          }
+        }
       }
     }
   }
@@ -961,9 +1164,7 @@ export default {
 }
 
 .control-dialog {
-  ::v-deep .el-dialog__body {
-    padding-top: 20px;
-  }
+  display: none;
 }
 
 :root {
@@ -1069,6 +1270,62 @@ export default {
         background-color: #243656;
         border-color: #334769;
         color: #fff;
+      }
+    }
+  }
+}
+
+.single-device-control-dialog {
+  :deep(.el-dialog__body) {
+    padding-top: 20px;
+  }
+  
+  :deep(.el-dialog__footer) {
+    .dialog-footer {
+      display: flex;
+      justify-content: center;
+      
+      .el-button {
+        min-width: 100px;
+      }
+    }
+  }
+  
+  :deep(.temp-control) {
+    .temp-control-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      
+      .el-input-number {
+        width: 60%;
+      }
+      
+      .el-button {
+        margin-left: 60px;
+        min-width: 80px;
+      }
+    }
+  }
+  
+  :deep(.el-switch),
+  :deep(.el-radio-group) {
+    pointer-events: auto;
+  }
+  
+  :deep(.el-form-item) {
+    margin-bottom: 22px;
+  }
+  
+  :deep(.el-radio-group) {
+    .el-radio {
+      margin-right: 20px;
+      margin-bottom: 10px;
+      
+      &.is-checked {
+        .el-radio__label {
+          color: var(--el-color-primary);
+        }
       }
     }
   }
