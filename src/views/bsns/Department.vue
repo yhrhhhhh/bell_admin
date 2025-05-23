@@ -21,6 +21,9 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
+        
+        <!-- 添加设备按钮 -->
+        <el-button class="filter-item" type="success" icon="el-icon-plus" @click="handleAdd">添加设备</el-button>
       </div>
       <el-switch
         v-model="isDarkTheme"
@@ -320,10 +323,13 @@
           <el-input v-model="editForm.name" placeholder="请输入设备名称"/>
         </el-form-item>
         <el-form-item label="设备编号" prop="code">
-          <el-input v-model="editForm.code" placeholder="请输入设备编号"/>
+          <el-input v-model="editForm.code" :placeholder="editForm.code"/>
         </el-form-item>
-        <el-form-item label="设备UUID">
-          <el-input v-model="editForm.uuid" placeholder="设备UUID" disabled/>
+        <el-form-item label="设备UUID" prop="uuid">
+          <el-input v-model="editForm.uuid" :placeholder="editForm.uuid"/>
+        </el-form-item>
+        <el-form-item label="设备Topic" prop="topic">
+          <el-input v-model="editForm.topic" :placeholder="editForm.topic"/>
         </el-form-item>
         <el-form-item label="所属公司" prop="company_id">
           <el-select 
@@ -390,6 +396,78 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 添加设备弹窗 -->
+    <el-dialog
+      v-model="addDialogVisible"
+      title="添加设备"
+      width="40%"
+    >
+      <el-form :model="addForm" :rules="addRules" ref="addFormRef" label-width="100px">
+        <el-form-item label="设备名称" prop="name">
+          <el-input v-model="addForm.name" placeholder="请输入设备名称"/>
+        </el-form-item>
+        <el-form-item label="设备编号" prop="code">
+          <el-input v-model="addForm.code" placeholder="请输入设备编号"/>
+        </el-form-item>
+        <el-form-item label="设备UUID" prop="uuid">
+          <el-input v-model="addForm.uuid" placeholder="请输入设备UUID"/>
+        </el-form-item>
+        <el-form-item label="设备Topic" prop="topic">
+          <el-input v-model="addForm.topic" placeholder="请输入设备Topic"/>
+        </el-form-item>
+        <el-form-item label="所属公司" prop="company_id">
+          <el-select 
+            v-model="addForm.company_id" 
+            placeholder="请选择公司"
+            @change="handleCompanyChangeInAdd"
+            clearable
+          >
+            <el-option
+              v-for="item in companyTreeData"
+              :key="item.id"
+              :label="item.label"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="所属部门" prop="department_id">
+          <el-select 
+            v-model="addForm.department_id" 
+            placeholder="请选择部门"
+            :disabled="!addForm.company_id"
+            clearable
+          >
+            <el-option
+              v-for="dept in currentDepartments"
+              :key="dept.id"
+              :label="dept.label"
+              :value="dept.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="所在楼层" prop="floor_id">
+          <el-cascader
+            v-model="addForm.floor_id"
+            :options="buildingTreeData"
+            :props="{
+              checkStrictly: true,
+              label: 'label',
+              value: 'id',
+              children: 'children'
+            }"
+            placeholder="请选择楼层"
+            clearable
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="addDialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="handleAddSubmit">确 定</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -448,7 +526,8 @@ export default {
         floor_id: '',
         company_id: '',
         department_id: '',
-        uuid: ''
+        uuid: '',
+        topic: ''
       },
       editRules: {
         name: [
@@ -456,6 +535,12 @@ export default {
         ],
         code: [
           { required: true, message: '请输入设备编号', trigger: 'blur' }
+        ],
+        uuid: [
+          { required: true, message: '请输入设备UUID', trigger: 'blur' }
+        ],
+        topic: [
+          { required: true, message: '请输入设备Topic', trigger: 'blur' }
         ],
         floor_id: [
           { required: true, message: '请选择所在楼层', trigger: 'blur' }
@@ -480,7 +565,47 @@ export default {
       selectedCompany: null,
       selectedDepartment: null,
       currentFloors: [],
-      currentDepartments: []
+      currentDepartments: [],
+      topicOptions: [],
+      addForm: {
+        name: '',
+        code: '',
+        uuid: '',
+        topic: '',
+        floor_id: null,
+        company_id: null,
+        department_id: null,
+        current_temp: 25,
+        set_temp: 25,
+        status: 'stopped',
+        mode: 'auto',
+        fan_speed: 0,
+        room_id: 1
+      },
+      addDialogVisible: false,
+      addRules: {
+        name: [
+          { required: true, message: '请输入设备名称', trigger: 'blur' }
+        ],
+        code: [
+          { required: true, message: '请输入设备编号', trigger: 'blur' }
+        ],
+        uuid: [
+          { required: true, message: '请输入设备UUID', trigger: 'blur' }
+        ],
+        topic: [
+          { required: true, message: '请输入设备Topic', trigger: 'blur' }
+        ],
+        floor_id: [
+          { required: true, message: '请选择所在楼层', trigger: 'change' }
+        ],
+        company_id: [
+          { required: true, message: '请选择所属公司', trigger: 'change' }
+        ],
+        department_id: [
+          { required: true, message: '请选择所属部门', trigger: 'change' }
+        ]
+      },
     }
   },
   computed: {
@@ -506,7 +631,17 @@ export default {
   },
   methods: {
     handleFilter() {
-      this.fetchDeviceList()
+      // 重置其他查询条件
+      this.selectedBuilding = null;
+      this.selectedFloor = null;
+      this.selectedGateway = null;
+      this.selectedCompany = null;
+      this.selectedDepartment = null;
+      
+      this.fetchDeviceList({
+        name: this.listQuery.name,
+        status: this.listQuery.status
+      })
     },
 
     handleDeviceSelect() {
@@ -544,7 +679,7 @@ export default {
     },
 
     handleNodeClick(data) {
-      console.log('点击的节点数据:', data)
+      console.log('Node clicked:', data)  // 添加调试日志
       let queryParams = {}
       
       switch (data.type) {
@@ -555,8 +690,15 @@ export default {
           }
           break
         case 'device':
-          queryParams = {
-            device_id: data.label
+          if (data.uuid) {  // 如果是从网关树点击的设备
+            queryParams = {
+              uuid: data.uuid,
+              device_id: data.device_id
+            }
+          } else {  // 如果是从建筑树点击的设备
+            queryParams = {
+              device_id: data.id
+            }
           }
           break
         case 'department':
@@ -567,16 +709,33 @@ export default {
           break
         case 'gateway':
           queryParams = {
-            uuid: data.label
+            uuid: data.id  // 网关节点的id就是uuid
           }
           break
       }
       
-      this.fetchDeviceList(queryParams)
+      console.log('Query params:', queryParams)  // 添加调试日志
+      
+      if (Object.keys(queryParams).length > 0) {
+        this.fetchDeviceList(queryParams)
+      }
     },
     handleCommand(command, device) {
       this.currentDevice = device
       if (command === 'edit') {
+        this.fetchTopicOptions()
+        
+        // 从uuid_info中获取uuid和topic信息
+        const uuid = device.uuid_info ? device.uuid_info.uuid : ''
+        const topic = device.uuid_info ? device.uuid_info.topic : ''
+        
+        console.log('编辑设备:', {
+          device,
+          uuid_info: device.uuid_info,
+          uuid,
+          topic
+        })
+        
         this.editForm = {
           id: device.id,
           name: device.name,
@@ -584,8 +743,10 @@ export default {
           floor_id: device.floor_id,
           company_id: device.company_id,
           department_id: device.department_id,
-          uuid: device.uuid
+          uuid: uuid,
+          topic: topic
         }
+        
         if (device.company_id) {
           const company = this.companyTreeData.find(c => c.id === device.company_id)
           if (company) {
@@ -643,6 +804,9 @@ export default {
         this.buildingTreeData = response.data.building_tree
         this.gatewayTreeData = response.data.gateway_tree
         this.companyTreeData = response.data.company_tree
+        
+        // 临时调试日志
+        console.log('Gateway Tree Data:', this.gatewayTreeData)
       } catch (error) {
         console.error('获取组织架构数据失败:', error)
         this.$message.error('获取组织架构数据失败')
@@ -652,18 +816,12 @@ export default {
       try {
         let queryParams = new URLSearchParams()
         
+        // 合并传入的参数
         Object.entries(params).forEach(([key, value]) => {
           if (value) {
             queryParams.append(key, value)
           }
         })
-        
-        if (this.listQuery.name) {
-          queryParams.append('name', this.listQuery.name)
-        }
-        if (this.listQuery.status) {
-          queryParams.append('status', this.listQuery.status)
-        }
         
         const response = await get(`/api/device/filter/?${queryParams.toString()}`)
         this.deviceList = response.data.map(device => ({
@@ -715,14 +873,7 @@ export default {
       this.fetchAllTrees()
     },
     getDeviceCount(data) {
-      console.log('楼层数据:', data)
-      console.log('设备列表:', this.deviceList)
-      console.log('当前楼层号:', data.floor_number)
-      console.log('设备的楼层ID:', this.deviceList.map(d => d.floor_id))
-      
-      const count = this.deviceList.filter(device => device.floor_id === data.floor_number).length
-      console.log('匹配到的设备数量:', count)
-      return count
+      return this.deviceList.filter(device => device.floor_id === data.floor_number).length
     },
     async confirmBatchControl() {
       try {
@@ -755,33 +906,54 @@ export default {
     },
     async handleEditSubmit() {
       try {
-        console.log('准备发送的编辑数据:', this.editForm)
-        const response = await put(`/api/device/device/${this.editForm.id}/`, {
+        await this.$refs.editFormRef.validate()
+        
+        console.log('提交编辑表单:', this.editForm)
+        
+        // 先创建或更新Topic
+        if (this.editForm.uuid && this.editForm.topic) {
+          console.log('更新Topic:', {
+            uuid: this.editForm.uuid,
+            topic: this.editForm.topic
+          })
+          
+          const topicResponse = await post('/api/device/topic/create_or_update/', {
+            uuid: this.editForm.uuid,
+            topic: this.editForm.topic
+          })
+          
+          if (!topicResponse.data.success) {
+            this.$message.error('Topic保存失败：' + topicResponse.data.error)
+            return
+          }
+          
+          console.log('Topic更新成功:', topicResponse.data)
+        }
+        
+        // 更新设备信息
+        const deviceData = {
           name: this.editForm.name,
           device_id: this.editForm.code,
           floor_id: this.editForm.floor_id,
           company_id: this.editForm.company_id,
           department_id: this.editForm.department_id,
           uuid: this.editForm.uuid
-        })
+        }
         
-        console.log('修改设备响应:', response)
+        console.log('更新设备:', deviceData)
+        
+        const response = await put(`/api/device/devices/${this.editForm.id}/`, deviceData)
         
         if (response.status === 200 || response.data.code === 200) {
           this.$message.success('修改成功')
           this.editDialogVisible = false
           await this.fetchDeviceList()
+          await this.fetchAllTrees()  // 刷新树形结构
         } else {
           this.$message.error(response.data.message || '修改失败')
         }
       } catch (error) {
-        console.error('修改设备失败:', {
-          error: error,
-          response: error.response,
-          data: error.response?.data,
-          status: error.response?.status,
-          message: error.message
-        })
+        console.error('修改设备失败:', error)
         this.$message.error(`修改失败：${error.response?.data?.message || error.response?.data?.error || error.message}`)
       }
     },
@@ -954,6 +1126,138 @@ export default {
         this.$message.error('修改失败：' + error.message)
         this.controlForm.fan_speed = this.currentDevice.fan_speed // 恢复原值
       }
+    },
+    async handleSearchTopic() {
+      if (!this.editForm.uuid) {
+        this.$message.warning('请先输入UUID')
+        return
+      }
+      try {
+        const response = await get(`/api/device/topic/search/?uuid=${this.editForm.uuid}`)
+        if (response.data.topic) {
+          this.$message.success(`找到对应Topic: ${response.data.topic}`)
+        } else {
+          this.$message.warning('未找到对应的Topic')
+        }
+      } catch (error) {
+        this.$message.error('查询Topic失败：' + error.message)
+      }
+    },
+    async fetchTopicOptions() {
+      try {
+        const response = await get('/api/device/topic/list/')
+        this.topicOptions = response.data.map(topic => ({
+          value: topic,
+          label: topic
+        }))
+      } catch (error) {
+        console.error('获取Topic列表失败:', error)
+        this.$message.error('获取Topic列表失败')
+      }
+    },
+    handleAdd() {
+      this.addForm = {
+        name: '',
+        code: '',
+        uuid: '',
+        topic: '',
+        floor_id: null,
+        company_id: null,
+        department_id: null,
+        current_temp: 25,
+        set_temp: 25,
+        status: 'stopped',
+        mode: 'auto',
+        fan_speed: 0,
+        room_id: 1
+      }
+      this.currentDepartments = []
+      this.addDialogVisible = true
+    },
+    handleCompanyChangeInAdd(value) {
+      if (!value && value !== 0) {
+        this.addForm.company_id = null
+        this.addForm.department_id = null
+        this.currentDepartments = []
+        return
+      }
+      
+      // 确保是数字类型
+      const companyId = parseInt(value)
+      if (isNaN(companyId)) {
+        this.$message.error('公司ID无效')
+        return
+      }
+      
+      this.addForm.company_id = companyId
+      
+      // 重置部门选择
+      this.addForm.department_id = null
+      
+      // 更新部门列表
+      const company = this.companyTreeData.find(c => c.id === companyId)
+      if (company) {
+        this.currentDepartments = company.children || []
+      } else {
+        this.currentDepartments = []
+      }
+    },
+    async handleAddSubmit() {
+      try {
+        // 表单验证
+        await this.$refs.addFormRef.validate()
+        
+        // 构造提交数据
+        const deviceData = {
+          name: this.addForm.name,
+          device_id: this.addForm.code,
+          uuid: this.addForm.uuid,
+          topic: this.addForm.topic,
+          floor_id: Array.isArray(this.addForm.floor_id) ? 
+            parseInt(this.addForm.floor_id[this.addForm.floor_id.length - 1]) : 
+            parseInt(this.addForm.floor_id),
+          company_id: parseInt(this.addForm.company_id),
+          department_id: parseInt(this.addForm.department_id),
+          current_temp: this.addForm.current_temp || 25,
+          set_temp: this.addForm.set_temp || 25,
+          status: this.addForm.status || 'stopped',
+          mode: this.addForm.mode || 'auto',
+          fan_speed: this.addForm.fan_speed || 0,
+          room_id: 1
+        }
+        
+        // 验证必填字段
+        const requiredFields = ['name', 'device_id', 'uuid', 'topic', 'company_id', 'department_id', 'floor_id']
+        for (const field of requiredFields) {
+          if (!deviceData[field] && deviceData[field] !== 0) {
+            this.$message.error(`请填写${field}字段`)
+            return
+          }
+        }
+        
+        const response = await post('/api/device/devices/', deviceData)
+        
+        if (response.status === 201) {
+          this.$message.success('设备添加成功')
+          this.addDialogVisible = false
+          await this.fetchDeviceList()
+        } else {
+          this.$message.error(response.data.message || '添加失败')
+        }
+      } catch (error) {
+        if (error.response) {
+          const errorData = error.response.data
+          if (errorData.company_id) {
+            this.$message.error('请选择公司')
+          } else {
+            this.$message.error(`添加失败：${JSON.stringify(errorData)}`)
+          }
+        } else if (error.request) {
+          this.$message.error('网络请求失败，请检查网络连接')
+        } else {
+          this.$message.error(`添加失败：${error.message}`)
+        }
+      }
     }
   }
 }
@@ -999,7 +1303,7 @@ export default {
       flex: 1;
       padding: 10px;
       cursor: pointer;
-      font-size: 13px;
+      font-size: 14px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -1007,6 +1311,7 @@ export default {
       border-bottom: 2px solid transparent;
       transition: all 0.3s;
       color: var(--text-color);
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
       
       i {
         font-size: 18px;
@@ -1014,12 +1319,14 @@ export default {
       
       &:hover {
         color: var(--primary-color);
+        background-color: rgba(103, 194, 58, 0.1);
       }
       
       &.active {
         color: var(--primary-color);
         border-bottom-color: var(--primary-color);
-        background-color: rgba(64, 158, 255, 0.1);
+        background-color: rgba(103, 194, 58, 0.1);
+        font-weight: bold;
       }
     }
   }
@@ -1032,17 +1339,36 @@ export default {
     .custom-tree {
       background-color: transparent;
       color: var(--text-color);
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
       
-      ::v-deep .el-tree-node__content {
-        background-color: transparent;
-        height: 28px;
+      :deep(.el-tree-node) {
+        margin: 4px 0;
         
-        &:hover {
-          background-color: var(--tree-hover-background);
-        }
-        
-        &.is-current {
-          background-color: var(--tree-active-background);
+        .el-tree-node__content {
+          height: 36px;
+          border: 1px solid var(--border-color);
+          border-radius: 4px;
+          padding: 0 8px;
+          transition: all 0.3s;
+          font-size: 14px;
+          background-color: transparent;
+          
+          &:hover {
+            background-color: transparent;
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+          }
+          
+          &.is-current {
+            background-color: transparent;
+            border: 2px solid var(--primary-color);
+            color: var(--primary-color);
+            font-weight: bold;
+            
+            .custom-tree-node {
+              color: var(--primary-color);
+            }
+          }
         }
       }
     }
@@ -1053,15 +1379,17 @@ export default {
   margin-bottom: 16px;
   transition: all 0.3s;
   background-color: var(--card-background);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-color) !important;
+  border-radius: 4px;
   
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.2);
+    border-color: var(--primary-color) !important;
   }
   
   &.running {
-    border-color: var(--primary-color);
+    border: 2px solid var(--primary-color) !important;
   }
   
   .device-header {
@@ -1173,10 +1501,10 @@ export default {
   --background-color: #f0f2f5;
   --card-background: #fff;
   --text-color: #303133;
-  --border-color: #ebeef5;
-  --tree-background: #e8f5e9;  // 浅绿色背景
-  --tree-hover-background: #c8e6c9;
-  --tree-active-background: #a5d6a7;
+  --border-color: #e4e7ed;
+  --tree-background: #ffffff;
+  --tree-hover-background: transparent;
+  --tree-active-background: transparent;
 }
 
 .dark-theme {
@@ -1186,28 +1514,30 @@ export default {
   --card-background: #243656;
   --text-color: #fff;
   --border-color: #334769;
-  --tree-background: #243656;  // 与卡片背景相同
-  --tree-hover-background: #2c4166;
-  --tree-active-background: #334769;
+  --tree-background: #243656;
+  --tree-hover-background: transparent;
+  --tree-active-background: transparent;
   
-  .el-card {
-    background-color: var(--card-background);
-    border-color: var(--border-color);
-    color: var(--text-color);
-    
-    &:hover {
-      box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.4);
+  .org-structure {
+    .tree-container {
+      .custom-tree {
+        :deep(.el-tree-node) {
+          .el-tree-node__content {
+            &:hover {
+              background-color: transparent;
+              border-color: var(--primary-color);
+              color: var(--primary-color);
+            }
+            
+            &.is-current {
+              background-color: transparent;
+              border: 2px solid var(--primary-color);
+              color: var(--primary-color);
+            }
+          }
+        }
+      }
     }
-  }
-  
-  .el-checkbox__inner {
-    background-color: transparent;
-    border-color: var(--border-color);
-  }
-  
-  .el-checkbox__input.is-checked .el-checkbox__inner {
-    background-color: var(--primary-color);
-    border-color: var(--primary-color);
   }
 }
 

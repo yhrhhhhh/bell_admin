@@ -127,8 +127,6 @@ const handleConfirm = () => {
       } else {
         ElMessage.error(data.msg);
       }
-    } else {
-      console.log("fail")
     }
   })
 }

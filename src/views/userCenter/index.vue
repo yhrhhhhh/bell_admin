@@ -89,11 +89,9 @@ const formatDateTime = (dateTimeStr) => {
   try {
     const date = new Date(dateTimeStr)
     if (isNaN(date.getTime())) {
-      console.warn('无效的日期时间字符串:', dateTimeStr)
       return '日期格式错误'
     }
     
-    // 使用Intl.DateTimeFormat进行本地化时间格式化
     return new Intl.DateTimeFormat('zh-CN', {
       year: 'numeric',
       month: '2-digit',
@@ -105,7 +103,6 @@ const formatDateTime = (dateTimeStr) => {
       timeZone: 'Asia/Shanghai'
     }).format(date)
   } catch (e) {
-    console.error('时间格式化错误:', e, dateTimeStr)
     return '时间格式化失败'
   }
 }

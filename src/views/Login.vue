@@ -77,11 +77,9 @@
       const data = result.data
       if (data.code === 200) {
         ElMessage.success(data.info)
-        // 存储token和用户信息
         const token = data.token
         const userInfo = data.user
         
-        // 统一存储用户信息
         const storeUserInfo = () => {
           localStorage.setItem("token", token)
           sessionStorage.setItem("token", token)
@@ -91,7 +89,6 @@
         
         storeUserInfo()
         
-        // 记住密码处理
         if (loginForm.value.rememberMe) {
           Cookies.set("username", loginForm.value.username, { expires: 30 })
           Cookies.set("password", encrypt(loginForm.value.password), { expires: 30 })
@@ -102,7 +99,6 @@
           Cookies.remove("rememberMe")
         }
         
-        // 添加外机控制面板到标签页并跳转
         store.commit('ADD_TABS', {
           name: '外机控制面板',
           path: '/bsns/department'
@@ -112,7 +108,6 @@
         ElMessage.error(data.info || '登录失败')
       }
     } catch (error) {
-      console.error('登录失败:', error)
       ElMessage.error(error.message || '登录失败，请重试')
     }
   }
