@@ -50,4 +50,31 @@ export function getDeviceStatusHistory(deviceId, params) {
     method: 'get',
     params
   })
+}
+
+// 更新设备信息
+export function updateDevice(deviceId, data) {
+  return request({
+    url: `/api/devices/${deviceId}/`,
+    method: 'put',
+    data
+  })
+}
+
+// 创建或更新Topic
+export function createOrUpdateTopic(data) {
+  return request({
+    url: '/api/device/topic/create_or_update/',
+    method: 'post',
+    data
+  })
+}
+
+// 搜索Topic
+export function searchTopic(uuid) {
+  return request({
+    url: `/api/device/topic/search/`,
+    method: 'get',
+    params: { uuid }
+  })
 } 

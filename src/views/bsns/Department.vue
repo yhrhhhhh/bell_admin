@@ -325,11 +325,14 @@
         <el-form-item label="设备编号" prop="code">
           <el-input v-model="editForm.code" :placeholder="editForm.code"/>
         </el-form-item>
-        <el-form-item label="设备UUID" prop="uuid">
-          <el-input v-model="editForm.uuid" :placeholder="editForm.uuid"/>
+        <el-form-item label="设备UUID" prop="uuid_value">
+          <el-input v-model="editForm.uuid_value" placeholder="请输入设备UUID"/>
         </el-form-item>
-        <el-form-item label="设备Topic" prop="topic">
-          <el-input v-model="editForm.topic" :placeholder="editForm.topic"/>
+        <el-form-item label="订阅主题" prop="subscribe_topic">
+          <el-input v-model="editForm.subscribe_topic" placeholder="请输入订阅主题"/>
+        </el-form-item>
+        <el-form-item label="发布主题" prop="publish_topic">
+          <el-input v-model="editForm.publish_topic" placeholder="请输入发布主题"/>
         </el-form-item>
         <el-form-item label="所属公司" prop="company_id">
           <el-select 
@@ -342,8 +345,13 @@
               :key="company.id"
               :label="company.label"
               :value="company.id"
-            />
+            >
+              <span>{{ company.label }}</span>
+            </el-option>
           </el-select>
+          <span class="current-value" v-if="currentDevice && currentDevice.company_name">
+            当前值: {{ currentDevice.company_name }}
+          </span>
         </el-form-item>
         <el-form-item label="所属部门" prop="department_id">
           <el-select 
@@ -356,8 +364,13 @@
               :key="department.id"
               :label="department.label"
               :value="department.id"
-            />
+            >
+              <span>{{ department.label }}</span>
+            </el-option>
           </el-select>
+          <span class="current-value" v-if="currentDevice && currentDevice.department_name">
+            当前值: {{ currentDevice.department_name }}
+          </span>
         </el-form-item>
         <el-form-item label="所在楼层" prop="floor_id">
           <el-cascader
@@ -372,6 +385,9 @@
             placeholder="请选择楼层"
             clearable
           />
+          <span class="current-value" v-if="currentDevice">
+            当前值: {{ currentDevice.building_name }} - {{ currentDevice.floor_name }}
+          </span>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -410,11 +426,14 @@
         <el-form-item label="设备编号" prop="code">
           <el-input v-model="addForm.code" placeholder="请输入设备编号"/>
         </el-form-item>
-        <el-form-item label="设备UUID" prop="uuid">
-          <el-input v-model="addForm.uuid" placeholder="请输入设备UUID"/>
+        <el-form-item label="设备UUID" prop="uuid_value">
+          <el-input v-model="addForm.uuid_value" placeholder="请输入设备UUID"/>
         </el-form-item>
-        <el-form-item label="设备Topic" prop="topic">
-          <el-input v-model="addForm.topic" placeholder="请输入设备Topic"/>
+        <el-form-item label="订阅主题" prop="subscribe_topic">
+          <el-input v-model="addForm.subscribe_topic" placeholder="请输入订阅主题"/>
+        </el-form-item>
+        <el-form-item label="发布主题" prop="publish_topic">
+          <el-input v-model="addForm.publish_topic" placeholder="请输入发布主题"/>
         </el-form-item>
         <el-form-item label="所属公司" prop="company_id">
           <el-select 
@@ -526,8 +545,9 @@ export default {
         floor_id: '',
         company_id: '',
         department_id: '',
-        uuid: '',
-        topic: ''
+        uuid_value: '',
+        subscribe_topic: '',
+        publish_topic: ''
       },
       editRules: {
         name: [
@@ -536,11 +556,14 @@ export default {
         code: [
           { required: true, message: '请输入设备编号', trigger: 'blur' }
         ],
-        uuid: [
+        uuid_value: [
           { required: true, message: '请输入设备UUID', trigger: 'blur' }
         ],
-        topic: [
-          { required: true, message: '请输入设备Topic', trigger: 'blur' }
+        subscribe_topic: [
+          { required: true, message: '请输入订阅主题', trigger: 'blur' }
+        ],
+        publish_topic: [
+          { required: true, message: '请输入发布主题', trigger: 'blur' }
         ],
         floor_id: [
           { required: true, message: '请选择所在楼层', trigger: 'blur' }
@@ -570,8 +593,9 @@ export default {
       addForm: {
         name: '',
         code: '',
-        uuid: '',
-        topic: '',
+        uuid_value: '',
+        subscribe_topic: '',
+        publish_topic: '',
         floor_id: null,
         company_id: null,
         department_id: null,
@@ -590,11 +614,14 @@ export default {
         code: [
           { required: true, message: '请输入设备编号', trigger: 'blur' }
         ],
-        uuid: [
+        uuid_value: [
           { required: true, message: '请输入设备UUID', trigger: 'blur' }
         ],
-        topic: [
-          { required: true, message: '请输入设备Topic', trigger: 'blur' }
+        subscribe_topic: [
+          { required: true, message: '请输入订阅主题', trigger: 'blur' }
+        ],
+        publish_topic: [
+          { required: true, message: '请输入发布主题', trigger: 'blur' }
         ],
         floor_id: [
           { required: true, message: '请选择所在楼层', trigger: 'change' }
@@ -669,7 +696,7 @@ export default {
         const selectedDevices = this.deviceList.filter(device => device.selected)
         const deviceIds = selectedDevices.map(device => device.id)
         
-        await post('/api/device/device/batch-delete/', { device_ids: deviceIds })
+        await post('/api/device/devices/batch-delete/', { device_ids: deviceIds })
         this.$message.success('批量删除成功')
         this.batchDeleteDialogVisible = false
         await this.fetchDeviceList()
@@ -727,13 +754,15 @@ export default {
         
         // 从uuid_info中获取uuid和topic信息
         const uuid = device.uuid_info ? device.uuid_info.uuid : ''
-        const topic = device.uuid_info ? device.uuid_info.topic : ''
+        const subscribe_topic = device.uuid_info && device.uuid_info.topic ? device.uuid_info.topic.subscribe : ''
+        const publish_topic = device.uuid_info && device.uuid_info.topic ? device.uuid_info.topic.publish : ''
         
         console.log('编辑设备:', {
           device,
           uuid_info: device.uuid_info,
           uuid,
-          topic
+          subscribe_topic,
+          publish_topic
         })
         
         this.editForm = {
@@ -743,8 +772,9 @@ export default {
           floor_id: device.floor_id,
           company_id: device.company_id,
           department_id: device.department_id,
-          uuid: uuid,
-          topic: topic
+          uuid_value: uuid,
+          subscribe_topic: subscribe_topic,
+          publish_topic: publish_topic
         }
         
         if (device.company_id) {
@@ -768,7 +798,7 @@ export default {
     },
     async handleControlSubmit() {
       try {
-        const response = await post('/api/device/device/batch-control/', {
+        const response = await post('/api/device/devices/batch-control/', {
           device_ids: [this.currentDevice.id],
           control: {
             running: this.controlForm.running,
@@ -880,7 +910,7 @@ export default {
         const selectedDevices = this.deviceList.filter(device => device.selected)
         const deviceIds = selectedDevices.map(device => device.id)
         
-        const response = await post('/api/device/device/batch-control/', {
+        const response = await post('/api/device/devices/batch-control/', {
           device_ids: deviceIds,
           control: {
             running: this.batchControlForm.running,
@@ -911,15 +941,17 @@ export default {
         console.log('提交编辑表单:', this.editForm)
         
         // 先创建或更新Topic
-        if (this.editForm.uuid && this.editForm.topic) {
+        if (this.editForm.uuid_value && this.editForm.subscribe_topic && this.editForm.publish_topic) {
           console.log('更新Topic:', {
-            uuid: this.editForm.uuid,
-            topic: this.editForm.topic
+            uuid: this.editForm.uuid_value,
+            subscribe_topic: this.editForm.subscribe_topic,
+            publish_topic: this.editForm.publish_topic
           })
           
           const topicResponse = await post('/api/device/topic/create_or_update/', {
-            uuid: this.editForm.uuid,
-            topic: this.editForm.topic
+            uuid: this.editForm.uuid_value,
+            subscribe_topic: this.editForm.subscribe_topic,
+            publish_topic: this.editForm.publish_topic
           })
           
           if (!topicResponse.data.success) {
@@ -937,7 +969,9 @@ export default {
           floor_id: this.editForm.floor_id,
           company_id: this.editForm.company_id,
           department_id: this.editForm.department_id,
-          uuid: this.editForm.uuid
+          uuid_value: this.editForm.uuid_value,
+          subscribe_topic: this.editForm.subscribe_topic,
+          publish_topic: this.editForm.publish_topic
         }
         
         console.log('更新设备:', deviceData)
@@ -959,7 +993,7 @@ export default {
     },
     async handleDeleteConfirm() {
       try {
-        await del(`/api/device/device/${this.currentDevice.id}/`)
+        await del(`/api/device/devices/${this.currentDevice.id}/`)
         
         this.$message.success('删除成功')
         this.deleteDialogVisible = false
@@ -1011,7 +1045,7 @@ export default {
     },
     async handleRunningChange(value) {
       try {
-        const response = await post('/api/device/device/batch-control/', {
+        const response = await post('/api/device/devices/batch-control/', {
           device_ids: [this.currentDevice.id],
           control: {
             running: value
@@ -1041,7 +1075,7 @@ export default {
     },
     async handleTempSubmit() {
       try {
-        const response = await post('/api/device/device/batch-control/', {
+        const response = await post('/api/device/devices/batch-control/', {
           device_ids: [this.currentDevice.id],
           control: {
             temp: this.controlForm.temp
@@ -1069,7 +1103,7 @@ export default {
     },
     async handleModeChange(value) {
       try {
-        const response = await post('/api/device/device/batch-control/', {
+        const response = await post('/api/device/devices/batch-control/', {
           device_ids: [this.currentDevice.id],
           control: {
             mode: value
@@ -1099,7 +1133,7 @@ export default {
     },
     async handleFanSpeedChange(value) {
       try {
-        const response = await post('/api/device/device/batch-control/', {
+        const response = await post('/api/device/devices/batch-control/', {
           device_ids: [this.currentDevice.id],
           control: {
             fan_speed: value
@@ -1128,12 +1162,12 @@ export default {
       }
     },
     async handleSearchTopic() {
-      if (!this.editForm.uuid) {
+      if (!this.editForm.uuid_value) {
         this.$message.warning('请先输入UUID')
         return
       }
       try {
-        const response = await get(`/api/device/topic/search/?uuid=${this.editForm.uuid}`)
+        const response = await get(`/api/device/topic/search/?uuid=${this.editForm.uuid_value}`)
         if (response.data.topic) {
           this.$message.success(`找到对应Topic: ${response.data.topic}`)
         } else {
@@ -1159,8 +1193,9 @@ export default {
       this.addForm = {
         name: '',
         code: '',
-        uuid: '',
-        topic: '',
+        uuid_value: '',
+        subscribe_topic: '',
+        publish_topic: '',
         floor_id: null,
         company_id: null,
         department_id: null,
@@ -1211,13 +1246,14 @@ export default {
         const deviceData = {
           name: this.addForm.name,
           device_id: this.addForm.code,
-          uuid: this.addForm.uuid,
-          topic: this.addForm.topic,
-          floor_id: Array.isArray(this.addForm.floor_id) ? 
+          uuid_value: this.addForm.uuid_value,
+          subscribe_topic: this.addForm.subscribe_topic,
+          publish_topic: this.addForm.publish_topic,
+          floor: Array.isArray(this.addForm.floor_id) ? 
             parseInt(this.addForm.floor_id[this.addForm.floor_id.length - 1]) : 
             parseInt(this.addForm.floor_id),
-          company_id: parseInt(this.addForm.company_id),
-          department_id: parseInt(this.addForm.department_id),
+          company: parseInt(this.addForm.company_id),
+          department: parseInt(this.addForm.department_id),
           current_temp: this.addForm.current_temp || 25,
           set_temp: this.addForm.set_temp || 25,
           status: this.addForm.status || 'stopped',
@@ -1227,13 +1263,15 @@ export default {
         }
         
         // 验证必填字段
-        const requiredFields = ['name', 'device_id', 'uuid', 'topic', 'company_id', 'department_id', 'floor_id']
+        const requiredFields = ['name', 'device_id', 'uuid_value', 'subscribe_topic', 'publish_topic', 'company', 'department', 'floor']
         for (const field of requiredFields) {
           if (!deviceData[field] && deviceData[field] !== 0) {
             this.$message.error(`请填写${field}字段`)
             return
           }
         }
+        
+        console.log('提交设备数据:', deviceData)
         
         const response = await post('/api/device/devices/', deviceData)
         
@@ -1247,7 +1285,7 @@ export default {
       } catch (error) {
         if (error.response) {
           const errorData = error.response.data
-          if (errorData.company_id) {
+          if (errorData.company) {
             this.$message.error('请选择公司')
           } else {
             this.$message.error(`添加失败：${JSON.stringify(errorData)}`)
@@ -1659,5 +1697,13 @@ export default {
       }
     }
   }
+}
+
+.current-value {
+  display: block;
+  font-size: 12px;
+  color: #909399;
+  margin-top: 5px;
+  margin-left: 2px;
 }
 </style>
