@@ -7,11 +7,6 @@
       </el-col>
       <el-button type="primary" :icon="Search" @click="initUserList">搜索</el-button>
       <el-button type="success" :icon="DocumentAdd" @click="handleDialogValue()">新增</el-button>
-      <el-popconfirm title="您确定批量删除这些记录吗？" @confirm="handleDelete(null)">
-        <template #reference>
-          <el-button type="danger" :disabled="delBtnStatus" :icon="Delete">批量删除</el-button>
-        </template>
-      </el-popconfirm>
     </el-row>
 
     <el-table :data="tableData" stripe style="width: 100%" @selection-change="handleSelectionChange">
@@ -132,15 +127,7 @@ const handleCurrentChange=(pageNum)=>{
 }
 
 const handleDelete = async (id) => {
-  var ids = []
-  if (id) {
-    ids.push(id)
-  } else {
-    multipleSelection.value.forEach(row => {
-      ids.push(row.id)
-    })
-  }
-  const res = await requestUtil.del("user/action", ids)
+  const res = await requestUtil.del("user/action", [id])
   if (res.data.code == 200) {
     ElMessage({
       type: 'success',

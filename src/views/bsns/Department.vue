@@ -326,13 +326,20 @@
           <el-input v-model="editForm.code" :placeholder="editForm.code"/>
         </el-form-item>
         <el-form-item label="设备UUID" prop="uuid_value">
-          <el-input v-model="editForm.uuid_value" placeholder="请输入设备UUID"/>
+          <el-select v-model="editForm.uuid_value" @change="handleUuidChangeInEdit">
+            <el-option
+              v-for="item in uuidOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            ></el-option>
+          </el-select>
         </el-form-item>
         <el-form-item label="订阅主题" prop="subscribe_topic">
-          <el-input v-model="editForm.subscribe_topic" placeholder="请输入订阅主题"/>
+          <el-input v-model="editForm.subscribe_topic" placeholder="请输入订阅主题" disabled/>
         </el-form-item>
         <el-form-item label="发布主题" prop="publish_topic">
-          <el-input v-model="editForm.publish_topic" placeholder="请输入发布主题"/>
+          <el-input v-model="editForm.publish_topic" placeholder="请输入发布主题" disabled/>
         </el-form-item>
         <el-form-item label="所属公司" prop="company_id">
           <el-select 
@@ -427,13 +434,20 @@
           <el-input v-model="addForm.code" placeholder="请输入设备编号"/>
         </el-form-item>
         <el-form-item label="设备UUID" prop="uuid_value">
-          <el-input v-model="addForm.uuid_value" placeholder="请输入设备UUID"/>
+          <el-select v-model="addForm.uuid_value" @change="handleUuidChangeInAdd">
+            <el-option
+              v-for="item in uuidOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            ></el-option>
+          </el-select>
         </el-form-item>
         <el-form-item label="订阅主题" prop="subscribe_topic">
-          <el-input v-model="addForm.subscribe_topic" placeholder="请输入订阅主题"/>
+          <el-input v-model="addForm.subscribe_topic" placeholder="请输入订阅主题" disabled/>
         </el-form-item>
         <el-form-item label="发布主题" prop="publish_topic">
-          <el-input v-model="addForm.publish_topic" placeholder="请输入发布主题"/>
+          <el-input v-model="addForm.publish_topic" placeholder="请输入发布主题" disabled/>
         </el-form-item>
         <el-form-item label="所属公司" prop="company_id">
           <el-select 
@@ -559,12 +573,6 @@ export default {
         uuid_value: [
           { required: true, message: '请输入设备UUID', trigger: 'blur' }
         ],
-        subscribe_topic: [
-          { required: true, message: '请输入订阅主题', trigger: 'blur' }
-        ],
-        publish_topic: [
-          { required: true, message: '请输入发布主题', trigger: 'blur' }
-        ],
         floor_id: [
           { required: true, message: '请选择所在楼层', trigger: 'blur' }
         ],
@@ -617,12 +625,6 @@ export default {
         uuid_value: [
           { required: true, message: '请输入设备UUID', trigger: 'blur' }
         ],
-        subscribe_topic: [
-          { required: true, message: '请输入订阅主题', trigger: 'blur' }
-        ],
-        publish_topic: [
-          { required: true, message: '请输入发布主题', trigger: 'blur' }
-        ],
         floor_id: [
           { required: true, message: '请选择所在楼层', trigger: 'change' }
         ],
@@ -633,6 +635,7 @@ export default {
           { required: true, message: '请选择所属部门', trigger: 'change' }
         ]
       },
+      uuidOptions: [],
     }
   },
   computed: {
@@ -750,7 +753,7 @@ export default {
     handleCommand(command, device) {
       this.currentDevice = device
       if (command === 'edit') {
-        this.fetchTopicOptions()
+        this.fetchUuidOptions()
         
         // 从uuid_info中获取uuid和topic信息
         const uuid = device.uuid_info ? device.uuid_info.uuid : ''
@@ -1207,6 +1210,7 @@ export default {
         room_id: 1
       }
       this.currentDepartments = []
+      this.fetchUuidOptions()
       this.addDialogVisible = true
     },
     handleCompanyChangeInAdd(value) {
@@ -1247,8 +1251,6 @@ export default {
           name: this.addForm.name,
           device_id: this.addForm.code,
           uuid_value: this.addForm.uuid_value,
-          subscribe_topic: this.addForm.subscribe_topic,
-          publish_topic: this.addForm.publish_topic,
           floor: Array.isArray(this.addForm.floor_id) ? 
             parseInt(this.addForm.floor_id[this.addForm.floor_id.length - 1]) : 
             parseInt(this.addForm.floor_id),
@@ -1263,7 +1265,7 @@ export default {
         }
         
         // 验证必填字段
-        const requiredFields = ['name', 'device_id', 'uuid_value', 'subscribe_topic', 'publish_topic', 'company', 'department', 'floor']
+        const requiredFields = ['name', 'device_id', 'uuid_value', 'company', 'department', 'floor']
         for (const field of requiredFields) {
           if (!deviceData[field] && deviceData[field] !== 0) {
             this.$message.error(`请填写${field}字段`)
@@ -1296,7 +1298,47 @@ export default {
           this.$message.error(`添加失败：${error.message}`)
         }
       }
-    }
+    },
+    async fetchUuidOptions() {
+      try {
+        const response = await get('/api/device/topic/uuid-list/')
+        if (response.data.code === 200) {
+          this.uuidOptions = response.data.data.map(item => ({
+            value: item.uuid,
+            label: item.uuid,
+            subscribe_topic: item.subscribe_topic,
+            publish_topic: item.publish_topic
+          }))
+        }
+      } catch (error) {
+        console.error('获取UUID列表失败:', error)
+        this.$message.error('获取UUID列表失败')
+      }
+    },
+    handleUuidChangeInAdd(value) {
+      if (!value) {
+        this.addForm.subscribe_topic = ''
+        this.addForm.publish_topic = ''
+        return
+      }
+      const selectedUuid = this.uuidOptions.find(item => item.value === value)
+      if (selectedUuid) {
+        this.addForm.subscribe_topic = selectedUuid.subscribe_topic
+        this.addForm.publish_topic = selectedUuid.publish_topic
+      }
+    },
+    handleUuidChangeInEdit(value) {
+      if (!value) {
+        this.editForm.subscribe_topic = ''
+        this.editForm.publish_topic = ''
+        return
+      }
+      const selectedUuid = this.uuidOptions.find(item => item.value === value)
+      if (selectedUuid) {
+        this.editForm.subscribe_topic = selectedUuid.subscribe_topic
+        this.editForm.publish_topic = selectedUuid.publish_topic
+      }
+    },
   }
 }
 </script>
