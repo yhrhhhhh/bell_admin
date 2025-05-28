@@ -507,6 +507,7 @@
 <script>
 import { get, post, put, del } from '@/util/request'
 import { More } from '@element-plus/icons-vue'
+import { sendControlCommand } from '@/api/device'
 
 export default {
   name: 'Department',
@@ -911,30 +912,34 @@ export default {
     async confirmBatchControl() {
       try {
         const selectedDevices = this.deviceList.filter(device => device.selected)
-        const deviceIds = selectedDevices.map(device => device.id)
-        
-        const response = await post('/api/device/devices/batch-control/', {
-          device_ids: deviceIds,
-          control: {
-            running: this.batchControlForm.running,
-            temp: this.batchControlForm.temp,
-            mode: this.batchControlForm.mode,
-            fan_speed: this.batchControlForm.fan_speed
-          }
+        if (selectedDevices.length === 0) {
+          this.$message.warning('请选择要控制的设备')
+          return
+        }
+
+        const response = await post('/api/device/batch-control/', {
+          device_ids: selectedDevices.map(device => device.id),
+          control: this.batchControlForm
         })
-        
-        this.deviceList = this.deviceList.map(device => {
-          const updatedDevice = response.data.devices.find(d => d.id === device.id)
-          if (updatedDevice) {
-            return { ...updatedDevice, selected: false }
+
+        if (response.data.message) {
+          this.$message.success('批量控制成功')
+          const updatedDevices = response.data.devices
+          if (updatedDevices && updatedDevices.length > 0) {
+            this.deviceList = this.deviceList.map(device => {
+              const updatedDevice = updatedDevices.find(d => d.id === device.id)
+              if (updatedDevice) {
+                return { ...device, ...updatedDevice }
+              }
+              return device
+            })
           }
-          return device
-        })
-        
-        this.$message.success('批量控制成功')
-        this.batchControlDialogVisible = false
+          this.batchControlDialogVisible = false
+        } else {
+          this.$message.error(response.data.error || '批量控制失败')
+        }
       } catch (error) {
-        this.$message.error('批量控制失败：' + (error.response?.data?.error || error.message))
+        this.$message.error('批量控制失败：' + error.message)
       }
     },
     async handleEditSubmit() {
@@ -943,38 +948,35 @@ export default {
         
         console.log('提交编辑表单:', this.editForm)
         
-        // 先创建或更新Topic
-        if (this.editForm.uuid_value && this.editForm.subscribe_topic && this.editForm.publish_topic) {
-          console.log('更新Topic:', {
-            uuid: this.editForm.uuid_value,
-            subscribe_topic: this.editForm.subscribe_topic,
-            publish_topic: this.editForm.publish_topic
-          })
-          
-          const topicResponse = await post('/api/device/topic/create_or_update/', {
-            uuid: this.editForm.uuid_value,
-            subscribe_topic: this.editForm.subscribe_topic,
-            publish_topic: this.editForm.publish_topic
-          })
-          
-          if (!topicResponse.data.success) {
-            this.$message.error('Topic保存失败：' + topicResponse.data.error)
-            return
-          }
-          
-          console.log('Topic更新成功:', topicResponse.data)
+        // 处理楼层和建筑ID
+        let floorId = null;
+        let buildingId = null;
+        if (Array.isArray(this.editForm.floor_id) && this.editForm.floor_id.length > 0) {
+          // 级联选择器返回的是[buildingId, floorId]
+          buildingId = parseInt(this.editForm.floor_id[0]);
+          floorId = parseInt(this.editForm.floor_id[1]);
+        } else if (this.editForm.floor_id) {
+          floorId = parseInt(this.editForm.floor_id);
         }
         
         // 更新设备信息
         const deviceData = {
           name: this.editForm.name,
           device_id: this.editForm.code,
-          floor_id: this.editForm.floor_id,
-          company_id: this.editForm.company_id,
-          department_id: this.editForm.department_id,
-          uuid_value: this.editForm.uuid_value,
-          subscribe_topic: this.editForm.subscribe_topic,
-          publish_topic: this.editForm.publish_topic
+          building: buildingId,  // 建筑外键
+          floor: floorId,      // 楼层外键
+          company: parseInt(this.editForm.company_id),  // 公司外键
+          department: parseInt(this.editForm.department_id),  // 部门外键
+          uuid: this.editForm.uuid_value  // 只修改UUID外键
+        }
+        
+        // 验证必填字段
+        const requiredFields = ['name', 'device_id', 'uuid', 'company', 'department']
+        for (const field of requiredFields) {
+          if (!deviceData[field] && deviceData[field] !== 0) {
+            this.$message.error(`请填写${field}字段`)
+            return
+          }
         }
         
         console.log('更新设备:', deviceData)
@@ -1042,33 +1044,47 @@ export default {
     handleDepartmentChange(departmentId) {
       this.fetchDeviceList({ department_id: departmentId });
     },
-    handleCompanyChangeInEdit(companyId) {
-      this.editForm.company_id = companyId;
-      this.fetchDeviceList({ company_id: companyId });
+    handleCompanyChangeInEdit(value) {
+      if (!value && value !== 0) {
+        this.editForm.company_id = null
+        this.editForm.department_id = null
+        this.currentDepartments = []
+        return
+      }
+      
+      // 确保是数字类型
+      const companyId = parseInt(value)
+      if (isNaN(companyId)) {
+        this.$message.error('公司ID无效')
+        return
+      }
+      
+      this.editForm.company_id = companyId
+      
+      // 重置部门选择
+      this.editForm.department_id = null
+      
+      // 更新部门列表
+      const company = this.companyTreeData.find(c => c.id === companyId)
+      if (company) {
+        this.currentDepartments = company.children || []
+      } else {
+        this.currentDepartments = []
+      }
     },
     async handleRunningChange(value) {
       try {
-        const response = await post('/api/device/devices/batch-control/', {
-          device_ids: [this.currentDevice.id],
-          control: {
-            running: value
-          }
+        const response = await sendControlCommand({
+          uuid: this.currentDevice.uuid_info.uuid,
+          device_id: this.currentDevice.device_id,
+          property: 'onOff',
+          value: value ? 'running' : 'stopped'
         })
         
-        if (response.data.message) {
+        if (response.data.status === 'Command has been issued to the device.') {
           this.$message.success('运行状态修改成功')
-          const updatedDevices = response.data.devices
-          if (updatedDevices && updatedDevices.length > 0) {
-            this.deviceList = this.deviceList.map(device => {
-              const updatedDevice = updatedDevices.find(d => d.id === device.id)
-              if (updatedDevice) {
-                return { ...device, ...updatedDevice }
-              }
-              return device
-            })
-          }
         } else {
-          this.$message.error(response.data.error || '修改失败')
+          this.$message.error(response.data.message || '修改失败')
           this.controlForm.running = !value // 恢复原值
         }
       } catch (error) {
@@ -1078,27 +1094,17 @@ export default {
     },
     async handleTempSubmit() {
       try {
-        const response = await post('/api/device/devices/batch-control/', {
-          device_ids: [this.currentDevice.id],
-          control: {
-            temp: this.controlForm.temp
-          }
+        const response = await sendControlCommand({
+          uuid: this.currentDevice.uuid_info.uuid,
+          device_id: this.currentDevice.device_id,
+          property: 'tempSet',
+          value: this.controlForm.temp
         })
         
-        if (response.data.message) {
+        if (response.data.status === 'Command has been issued to the device.') {
           this.$message.success('温度设置成功')
-          const updatedDevices = response.data.devices
-          if (updatedDevices && updatedDevices.length > 0) {
-            this.deviceList = this.deviceList.map(device => {
-              const updatedDevice = updatedDevices.find(d => d.id === device.id)
-              if (updatedDevice) {
-                return { ...device, ...updatedDevice }
-              }
-              return device
-            })
-          }
         } else {
-          this.$message.error(response.data.error || '设置失败')
+          this.$message.error(response.data.message || '设置失败')
         }
       } catch (error) {
         this.$message.error('设置失败：' + error.message)
@@ -1106,27 +1112,17 @@ export default {
     },
     async handleModeChange(value) {
       try {
-        const response = await post('/api/device/devices/batch-control/', {
-          device_ids: [this.currentDevice.id],
-          control: {
-            mode: value
-          }
+        const response = await sendControlCommand({
+          uuid: this.currentDevice.uuid_info.uuid,
+          device_id: this.currentDevice.device_id,
+          property: 'workMode',
+          value: value
         })
         
-        if (response.data.message) {
+        if (response.data.status === 'Command has been issued to the device.') {
           this.$message.success('运行模式修改成功')
-          const updatedDevices = response.data.devices
-          if (updatedDevices && updatedDevices.length > 0) {
-            this.deviceList = this.deviceList.map(device => {
-              const updatedDevice = updatedDevices.find(d => d.id === device.id)
-              if (updatedDevice) {
-                return { ...device, ...updatedDevice }
-              }
-              return device
-            })
-          }
         } else {
-          this.$message.error(response.data.error || '修改失败')
+          this.$message.error(response.data.message || '修改失败')
           this.controlForm.mode = this.currentDevice.mode // 恢复原值
         }
       } catch (error) {
@@ -1136,27 +1132,17 @@ export default {
     },
     async handleFanSpeedChange(value) {
       try {
-        const response = await post('/api/device/devices/batch-control/', {
-          device_ids: [this.currentDevice.id],
-          control: {
-            fan_speed: value
-          }
+        const response = await sendControlCommand({
+          uuid: this.currentDevice.uuid_info.uuid,
+          device_id: this.currentDevice.device_id,
+          property: 'fanSpeed',
+          value: value
         })
         
-        if (response.data.message) {
+        if (response.data.status === 'Command has been issued to the device.') {
           this.$message.success('风速修改成功')
-          const updatedDevices = response.data.devices
-          if (updatedDevices && updatedDevices.length > 0) {
-            this.deviceList = this.deviceList.map(device => {
-              const updatedDevice = updatedDevices.find(d => d.id === device.id)
-              if (updatedDevice) {
-                return { ...device, ...updatedDevice }
-              }
-              return device
-            })
-          }
         } else {
-          this.$message.error(response.data.error || '修改失败')
+          this.$message.error(response.data.message || '修改失败')
           this.controlForm.fan_speed = this.currentDevice.fan_speed // 恢复原值
         }
       } catch (error) {
@@ -1250,7 +1236,7 @@ export default {
         const deviceData = {
           name: this.addForm.name,
           device_id: this.addForm.code,
-          uuid_value: this.addForm.uuid_value,
+          uuid: this.addForm.uuid_value,  // 这是Topic表的uuid，后端会根据这个找到对应的Topic ID
           floor: Array.isArray(this.addForm.floor_id) ? 
             parseInt(this.addForm.floor_id[this.addForm.floor_id.length - 1]) : 
             parseInt(this.addForm.floor_id),
@@ -1265,7 +1251,7 @@ export default {
         }
         
         // 验证必填字段
-        const requiredFields = ['name', 'device_id', 'uuid_value', 'company', 'department', 'floor']
+        const requiredFields = ['name', 'device_id', 'uuid', 'company', 'department', 'floor']
         for (const field of requiredFields) {
           if (!deviceData[field] && deviceData[field] !== 0) {
             this.$message.error(`请填写${field}字段`)
@@ -1317,26 +1303,28 @@ export default {
     },
     handleUuidChangeInAdd(value) {
       if (!value) {
+        this.addForm.uuid_value = null
         this.addForm.subscribe_topic = ''
         this.addForm.publish_topic = ''
         return
       }
+      // 只用于展示，不会提交这些值
       const selectedUuid = this.uuidOptions.find(item => item.value === value)
       if (selectedUuid) {
+        this.addForm.uuid_value = selectedUuid.value
+        // 只用于展示
         this.addForm.subscribe_topic = selectedUuid.subscribe_topic
         this.addForm.publish_topic = selectedUuid.publish_topic
       }
     },
     handleUuidChangeInEdit(value) {
       if (!value) {
-        this.editForm.subscribe_topic = ''
-        this.editForm.publish_topic = ''
+        this.editForm.uuid_value = null
         return
       }
       const selectedUuid = this.uuidOptions.find(item => item.value === value)
       if (selectedUuid) {
-        this.editForm.subscribe_topic = selectedUuid.subscribe_topic
-        this.editForm.publish_topic = selectedUuid.publish_topic
+        this.editForm.uuid_value = selectedUuid.value
       }
     },
   }
