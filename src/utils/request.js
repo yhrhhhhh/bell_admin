@@ -2,9 +2,13 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const defaultBaseURL = isLocalhost ? 'http://localhost:8000' : 'http://192.168.20.109:8000';
+
+
 // 创建 axios 实例
 const service = axios.create({
-  baseURL: process.env.VUE_APP_BASE_API || 'http://localhost:8000', // API 的基础URL
+  baseURL: process.env.VUE_APP_BASE_API || defaultBaseURL, // API 的基础URL
   timeout: 5000, // 请求超时时间
   headers: {
     'Content-Type': 'application/json'
@@ -13,7 +17,7 @@ const service = axios.create({
 
 // 获取服务器基础URL
 function getServerUrl() {
-  return process.env.VUE_APP_BASE_API || 'http://localhost:8000/'
+  return process.env.VUE_APP_BASE_API || defaultBaseURL + '/'
 }
 
 // 不需要token的白名单路径

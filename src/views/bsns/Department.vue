@@ -24,6 +24,14 @@
         
         <!-- 添加设备按钮 -->
         <el-button class="filter-item" type="success" icon="el-icon-plus" @click="handleAdd">添加设备</el-button>
+        <el-button
+          class="filter-item"
+          type="success"
+          icon="el-icon-download"
+          @click="handleExport"
+        >
+        导出所有设备信息
+        </el-button>
       </div>
       <el-switch
         v-model="isDarkTheme"
@@ -508,6 +516,8 @@
 import { get, post, put, del } from '@/util/request'
 import { More } from '@element-plus/icons-vue'
 import { sendControlCommand } from '@/api/device'
+import { ElMessage } from 'element-plus'
+import requestUtil from '@/util/request'
 
 export default {
   name: 'Department',
@@ -1325,6 +1335,27 @@ export default {
       const selectedUuid = this.uuidOptions.find(item => item.value === value)
       if (selectedUuid) {
         this.editForm.uuid_value = selectedUuid.value
+      }
+    },
+    async handleExport() {
+      try {
+        const response = await get('/api/device/export/', {
+          responseType: 'blob'
+        })
+        
+        // 创建下载链接
+        const url = window.URL.createObjectURL(new Blob([response.data]))
+        const link = document.createElement('a')
+        link.href = url
+        link.download = 'devices.csv'  // 改为.csv扩展名
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+        
+        ElMessage.success('导出成功')
+      } catch (error) {
+        ElMessage.error('导出失败：' + error.message)
       }
     },
   }
