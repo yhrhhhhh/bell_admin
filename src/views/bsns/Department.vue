@@ -6,7 +6,14 @@
         <el-select v-model="listQuery.status" placeholder="状态搜索" clearable style="width: 120px" class="filter-item">
           <el-option v-for="item in statusOptions" :key="item.key" :label="item.label" :value="item.key"/>
         </el-select>
-        <el-button class="filter-item" type="primary" icon="el-icon-search" @click="handleFilter">搜索</el-button>
+        <el-button class="filter-item" type="primary" @click="handleFilter">搜索</el-button>
+        <el-button 
+          class="filter-item" 
+          type="warning" 
+          @click="showDeviceId = !showDeviceId"
+        >
+          {{ showDeviceId ? '隐藏设备编号' : '显示设备编号' }}
+        </el-button>
         
         <!-- 修改批量操作按钮为下拉菜单 -->
         <el-dropdown class="filter-item" @command="handleBatchCommand">
@@ -22,8 +29,20 @@
           </template>
         </el-dropdown>
         
-        <!-- 添加设备按钮 -->
-        <el-button class="filter-item" type="success" icon="el-icon-plus" @click="handleAdd">添加设备</el-button>
+        <!-- 修改添加设备按钮为设备管理下拉菜单 -->
+        <el-dropdown class="filter-item" @command="handleManagementCommand">
+          <el-button type="success">
+            设备管理
+            <i class="el-icon-arrow-down el-icon--right"></i>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="addDevice">添加设备</el-dropdown-item>
+              <el-dropdown-item command="buildingManage">建筑和楼层管理</el-dropdown-item>
+              <el-dropdown-item command="companyManage">公司和部门管理</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <el-button
           class="filter-item"
           type="success"
@@ -43,7 +62,7 @@
 
     <el-row :gutter="20" class="main-content">
       <!-- 左侧树形菜单 -->
-      <el-col :span="4">
+      <el-col :span="5">
         <div class="org-structure">
           <div class="org-tabs">
             <div 
@@ -160,7 +179,7 @@
       </el-col>
 
       <!-- 右侧设备卡片 -->
-      <el-col :span="20">
+      <el-col :span="19">
         <el-row :gutter="16">
           <el-col :xs="24" :sm="12" :md="8" :lg="6" v-for="device in deviceList" :key="device.id">
             <el-card class="device-card" :class="{'running': device.status === 'running'}">
@@ -170,7 +189,17 @@
                   @change="handleDeviceSelect"
                   class="device-checkbox"
                 ></el-checkbox>
-                <span class="device-name">{{ device.name }}</span>
+                <div class="device-title">
+                  <span class="device-name">
+                    {{ device.name }}
+                    <template v-if="showDeviceId">
+                      ({{ device.device_id }})
+                    </template>
+                  </span>
+                  <span v-if="showDeviceId" class="device-uuid">
+                    UUID: {{ device.uuid_info ? device.uuid_info.uuid : '无' }}
+                  </span>
+                </div>
                 <el-dropdown trigger="click" @command="command => handleCommand(command, device)">
                   <el-icon class="more-icon"><More /></el-icon>
                   <template #dropdown>
@@ -509,6 +538,237 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 建筑管理对话框 -->
+    <el-dialog
+      v-model="buildingDialogVisible"
+      title="建筑管理"
+      width="60%"
+    >
+      <div class="building-management">
+        <div class="management-header">
+          <el-button type="primary" @click="handleAddBuilding" class="add-button">
+            <i class="el-icon-plus"></i> 添加建筑
+          </el-button>
+        </div>
+        <el-table :data="buildingList" style="width: 100%">
+          <el-table-column prop="name" label="建筑名称"/>
+          <el-table-column prop="code" label="建筑编码"/>
+          <el-table-column prop="description" label="建筑描述"/>
+          <el-table-column label="操作" width="280">
+            <template #default="scope">
+              <div class="operation-buttons">
+                <el-button size="small" type="primary" @click="handleEditBuilding(scope.row)">
+                  <i class="el-icon-edit"></i> 编辑
+                </el-button>
+                <el-button size="small" type="danger" @click="handleDeleteBuilding(scope.row)">
+                  <i class="el-icon-delete"></i> 删除
+                </el-button>
+                <el-button size="small" type="success" @click="handleManageFloors(scope.row)">
+                  <i class="el-icon-office-building"></i> 楼层
+                </el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-dialog>
+
+    <!-- 楼层管理对话框 -->
+    <el-dialog
+      v-model="floorDialogVisible"
+      :title="currentBuilding ? `${currentBuilding.name}的楼层管理` : '楼层管理'"
+      width="50%"
+    >
+      <div class="floor-management">
+        <div class="management-header">
+          <el-button type="primary" @click="handleAddFloor" class="add-button">
+            <i class="el-icon-plus"></i> 添加楼层
+          </el-button>
+        </div>
+        <el-table :data="floorList" style="width: 100%">
+          <el-table-column prop="name" label="楼层名称"/>
+          <el-table-column prop="floor_number" label="楼层号"/>
+          <el-table-column label="操作" width="200">
+            <template #default="scope">
+              <div class="operation-buttons">
+                <el-button size="small" type="primary" @click="handleEditFloor(scope.row)">
+                  <i class="el-icon-edit"></i> 编辑
+                </el-button>
+                <el-button size="small" type="danger" @click="handleDeleteFloor(scope.row)">
+                  <i class="el-icon-delete"></i> 删除
+                </el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-dialog>
+
+    <!-- 公司管理对话框 -->
+    <el-dialog
+      v-model="companyDialogVisible"
+      title="公司管理"
+      width="60%"
+    >
+      <div class="company-management">
+        <div class="management-header">
+          <el-button type="primary" @click="handleAddCompany" class="add-button">
+            <i class="el-icon-plus"></i> 添加公司
+          </el-button>
+        </div>
+        <el-table :data="companyList" style="width: 100%">
+          <el-table-column prop="name" label="公司名称"/>
+          <el-table-column prop="code" label="公司编码"/>
+          <el-table-column label="操作" width="280">
+            <template #default="scope">
+              <div class="operation-buttons">
+                <el-button size="small" type="primary" @click="handleEditCompany(scope.row)">
+                  <i class="el-icon-edit"></i> 编辑
+                </el-button>
+                <el-button size="small" type="danger" @click="handleDeleteCompany(scope.row)">
+                  <i class="el-icon-delete"></i> 删除
+                </el-button>
+                <el-button size="small" type="success" @click="handleManageDepartments(scope.row)">
+                  <i class="el-icon-suitcase"></i> 部门
+                </el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-dialog>
+
+    <!-- 部门管理对话框 -->
+    <el-dialog
+      v-model="departmentDialogVisible"
+      :title="currentCompany ? `${currentCompany.name}的部门管理` : '部门管理'"
+      width="50%"
+    >
+      <div class="department-management">
+        <div class="management-header">
+          <el-button type="primary" @click="handleAddDepartment" class="add-button">
+            <i class="el-icon-plus"></i> 添加部门
+          </el-button>
+        </div>
+        <el-table :data="departmentList" style="width: 100%">
+          <el-table-column prop="name" label="部门名称"/>
+          <el-table-column prop="code" label="部门编码"/>
+          <el-table-column label="操作" width="200">
+            <template #default="scope">
+              <div class="operation-buttons">
+                <el-button size="small" type="primary" @click="handleEditDepartment(scope.row)">
+                  <i class="el-icon-edit"></i> 编辑
+                </el-button>
+                <el-button size="small" type="danger" @click="handleDeleteDepartment(scope.row)">
+                  <i class="el-icon-delete"></i> 删除
+                </el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-dialog>
+
+    <!-- 添加/编辑建筑对话框 -->
+    <el-dialog
+      v-model="buildingFormDialogVisible"
+      :title="buildingForm.id ? '编辑建筑' : '添加建筑'"
+      width="40%"
+    >
+      <el-form :model="buildingForm" :rules="buildingRules" ref="buildingFormRef" label-width="100px">
+        <el-form-item label="建筑名称" prop="name">
+          <el-input v-model="buildingForm.name" placeholder="请输入建筑名称"/>
+        </el-form-item>
+        <el-form-item label="建筑编码" prop="code">
+          <el-input v-model="buildingForm.code" placeholder="请输入建筑编码"/>
+        </el-form-item>
+        <el-form-item label="建筑描述" prop="description">
+          <el-input type="textarea" v-model="buildingForm.description" placeholder="请输入建筑描述"/>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="buildingFormDialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="submitBuildingForm">确 定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 添加/编辑楼层对话框 -->
+    <el-dialog
+      v-model="floorFormDialogVisible"
+      :title="floorForm.id ? '编辑楼层' : '添加楼层'"
+      width="40%"
+    >
+      <el-form :model="floorForm" :rules="floorRules" ref="floorFormRef" label-width="100px">
+        <el-form-item label="楼层名称" prop="name">
+          <el-input v-model="floorForm.name" placeholder="请输入楼层名称"/>
+        </el-form-item>
+        <el-form-item label="楼层号" prop="floor_number">
+          <el-input-number v-model="floorForm.floor_number" :min="-5" :max="100" placeholder="请输入楼层号"/>
+        </el-form-item>
+        <el-form-item label="楼层描述" prop="description">
+          <el-input type="textarea" v-model="floorForm.description" placeholder="请输入楼层描述"/>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="floorFormDialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="submitFloorForm">确 定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 添加/编辑公司对话框 -->
+    <el-dialog
+      v-model="companyFormDialogVisible"
+      :title="companyForm.id ? '编辑公司' : '添加公司'"
+      width="40%"
+    >
+      <el-form :model="companyForm" :rules="companyRules" ref="companyFormRef" label-width="100px">
+        <el-form-item label="公司名称" prop="name">
+          <el-input v-model="companyForm.name" placeholder="请输入公司名称"/>
+        </el-form-item>
+        <el-form-item label="公司编码" prop="code">
+          <el-input v-model="companyForm.code" placeholder="请输入公司编码"/>
+        </el-form-item>
+        <el-form-item label="公司描述" prop="description">
+          <el-input type="textarea" v-model="companyForm.description" placeholder="请输入公司描述"/>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="companyFormDialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="submitCompanyForm">确 定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 添加/编辑部门对话框 -->
+    <el-dialog
+      v-model="departmentFormDialogVisible"
+      :title="departmentForm.id ? '编辑部门' : '添加部门'"
+      width="40%"
+    >
+      <el-form :model="departmentForm" :rules="departmentRules" ref="departmentFormRef" label-width="100px">
+        <el-form-item label="部门名称" prop="name">
+          <el-input v-model="departmentForm.name" placeholder="请输入部门名称"/>
+        </el-form-item>
+        <el-form-item label="部门编码" prop="code">
+          <el-input v-model="departmentForm.code" placeholder="请输入部门编码"/>
+        </el-form-item>
+        <el-form-item label="部门描述" prop="description">
+          <el-input type="textarea" v-model="departmentForm.description" placeholder="请输入部门描述"/>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="departmentFormDialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="submitDepartmentForm">确 定</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -527,6 +787,7 @@ export default {
   data() {
     return {
       isDarkTheme: true,
+      showDeviceId: false,  // 添加显示设备编号的状态控制
       currentTreeType: 'building',
       buildingTreeData: [],
       gatewayTreeData: [],
@@ -647,6 +908,69 @@ export default {
         ]
       },
       uuidOptions: [],
+      buildingDialogVisible: false,
+      buildingList: [],
+      buildingForm: {
+        id: null,
+        name: '',
+        code: '',
+        description: ''
+      },
+      buildingFormDialogVisible: false,
+      buildingRules: {
+        name: [
+          { required: true, message: '请输入建筑名称', trigger: 'blur' },
+          { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
+        ],
+        code: [
+          { required: true, message: '请输入建筑编码', trigger: 'blur' },
+          { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' },
+          { pattern: /^[A-Za-z0-9-_]+$/, message: '编码只能包含字母、数字、下划线和横线', trigger: 'blur' }
+        ]
+      },
+      floorDialogVisible: false,
+      floorList: [],
+      currentBuilding: null,
+      floorForm: {
+        id: null,
+        name: '',
+        floor_number: 1,
+        description: '',
+        building: null
+      },
+      floorFormDialogVisible: false,
+      floorRules: {
+        name: [{ required: true, message: '请输入楼层名称', trigger: 'blur' }],
+        floor_number: [{ required: true, message: '请输入楼层号', trigger: 'blur' }]
+      },
+      companyDialogVisible: false,
+      companyList: [],
+      companyForm: {
+        id: null,
+        name: '',
+        code: '',
+        description: ''
+      },
+      companyFormDialogVisible: false,
+      companyRules: {
+        name: [{ required: true, message: '请输入公司名称', trigger: 'blur' }],
+        code: [{ required: true, message: '请输入公司编码', trigger: 'blur' }]
+      },
+      departmentDialogVisible: false,
+      departmentList: [],
+      currentCompany: null,
+      departmentForm: {
+        id: null,
+        name: '',
+        code: '',
+        description: '',
+        company: null
+      },
+      departmentFormDialogVisible: false,
+      departmentRules: {
+        name: [{ required: true, message: '请输入部门名称', trigger: 'blur' }],
+        code: [{ required: true, message: '请输入部门编码', trigger: 'blur' }]
+      }
     }
   },
   computed: {
@@ -846,7 +1170,16 @@ export default {
       try {
         const response = await get('/api/device/all/trees/')
         this.buildingTreeData = response.data.building_tree
-        this.gatewayTreeData = response.data.gateway_tree
+        
+        // 修改网关树的设备显示格式
+        this.gatewayTreeData = response.data.gateway_tree.map(gateway => ({
+          ...gateway,
+          children: gateway.children ? gateway.children.map(device => ({
+            ...device,
+            label: `${device.label}(${device.device_id || ''})`  // 拼接设备名称和device_id
+          })) : []
+        }))
+        
         this.companyTreeData = response.data.company_tree
         
         // 临时调试日志
@@ -1358,6 +1691,291 @@ export default {
         ElMessage.error('导出失败：' + error.message)
       }
     },
+    // 设备管理下拉菜单处理
+    handleManagementCommand(command) {
+      switch (command) {
+        case 'addDevice':
+          this.handleAdd()
+          break
+        case 'buildingManage':
+          this.showBuildingManagement()
+          break
+        case 'companyManage':
+          this.showCompanyManagement()
+          break
+      }
+    },
+    // 建筑管理相关方法
+    async showBuildingManagement() {
+      await this.fetchBuildingList()
+      this.buildingDialogVisible = true
+    },
+    async fetchBuildingList() {
+      try {
+        const response = await get('/api/device/buildings/')
+        if (response.data) {
+          this.buildingList = response.data.map(building => ({
+            id: building.id,
+            name: building.name || '未命名建筑',
+            code: building.code || '无编码',
+            description: building.description || '无描述'
+          }))
+          console.log('建筑列表:', this.buildingList)  // 添加调试日志
+        } else {
+          this.$message.warning('获取建筑列表数据为空')
+          this.buildingList = []
+        }
+      } catch (error) {
+        console.error('获取建筑列表失败:', error)
+        this.$message.error('获取建筑列表失败：' + (error.response?.data?.message || error.message))
+        this.buildingList = []
+      }
+    },
+    handleAddBuilding() {
+      this.buildingForm = {
+        id: null,
+        name: '',
+        code: '',
+        description: ''
+      }
+      this.buildingFormDialogVisible = true
+    },
+    handleEditBuilding(building) {
+      this.buildingForm = { ...building }
+      this.buildingFormDialogVisible = true
+    },
+    async handleDeleteBuilding(building) {
+      try {
+        await this.$confirm('删除建筑将同时删除其下所有楼层，是否继续？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+        
+        await del(`/api/device/buildings/${building.id}/`)
+        this.$message.success('删除成功')
+        await this.fetchBuildingList()
+        await this.fetchAllTrees()
+      } catch (error) {
+        if (error !== 'cancel') {
+          this.$message.error('删除失败：' + error.message)
+        }
+      }
+    },
+    async submitBuildingForm() {
+      try {
+        await this.$refs.buildingFormRef.validate()
+        if (this.buildingForm.id) {
+          await put(`/api/device/buildings/${this.buildingForm.id}/`, this.buildingForm)
+          this.$message.success('修改成功')
+        } else {
+          await post('/api/device/buildings/', this.buildingForm)
+          this.$message.success('添加成功')
+        }
+        this.buildingFormDialogVisible = false
+        await this.fetchBuildingList()
+        await this.fetchAllTrees()
+      } catch (error) {
+        this.$message.error('操作失败：' + error.message)
+      }
+    },
+    // 楼层管理相关方法
+    async handleManageFloors(building) {
+      this.currentBuilding = building
+      await this.fetchFloorList(building.id)
+      this.floorDialogVisible = true
+    },
+    async fetchFloorList(buildingId) {
+      try {
+        const response = await get(`/api/device/buildings/${buildingId}/floors/`)
+        this.floorList = response.data
+      } catch (error) {
+        this.$message.error('获取楼层列表失败：' + error.message)
+      }
+    },
+    handleAddFloor() {
+      this.floorForm = {
+        id: null,
+        name: '',
+        floor_number: 1,
+        description: '',
+        building: this.currentBuilding.id
+      }
+      this.floorFormDialogVisible = true
+    },
+    handleEditFloor(floor) {
+      this.floorForm = { ...floor }
+      this.floorFormDialogVisible = true
+    },
+    async handleDeleteFloor(floor) {
+      try {
+        await this.$confirm('确定要删除该楼层吗？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+        
+        await del(`/api/device/floors/${floor.id}/`)
+        this.$message.success('删除成功')
+        await this.fetchFloorList(this.currentBuilding.id)
+        await this.fetchAllTrees()
+      } catch (error) {
+        if (error !== 'cancel') {
+          this.$message.error('删除失败：' + error.message)
+        }
+      }
+    },
+    async submitFloorForm() {
+      try {
+        await this.$refs.floorFormRef.validate()
+        const floorData = {
+          name: this.floorForm.name,
+          floor_number: this.floorForm.floor_number,
+          description: this.floorForm.description,
+          building: this.currentBuilding.id  // 确保设置building字段
+        }
+        
+        console.log('提交楼层数据:', floorData)  // 添加调试日志
+        
+        if (this.floorForm.id) {
+          await put(`/api/device/floors/${this.floorForm.id}/`, floorData)
+          this.$message.success('修改成功')
+        } else {
+          await post('/api/device/floors/', floorData)
+          this.$message.success('添加成功')
+        }
+        this.floorFormDialogVisible = false
+        await this.fetchFloorList(this.currentBuilding.id)
+        await this.fetchAllTrees()
+      } catch (error) {
+        console.error('楼层操作失败:', error)
+        this.$message.error('操作失败：' + (error.response?.data?.message || error.response?.data?.error || error.message))
+      }
+    },
+    // 公司管理相关方法
+    async showCompanyManagement() {
+      await this.fetchCompanyList()
+      this.companyDialogVisible = true
+    },
+    async fetchCompanyList() {
+      try {
+        const response = await get('/api/device/companies/')
+        this.companyList = response.data
+      } catch (error) {
+        this.$message.error('获取公司列表失败：' + error.message)
+      }
+    },
+    handleAddCompany() {
+      this.companyForm = {
+        id: null,
+        name: '',
+        code: '',
+        description: ''
+      }
+      this.companyFormDialogVisible = true
+    },
+    handleEditCompany(company) {
+      this.companyForm = { ...company }
+      this.companyFormDialogVisible = true
+    },
+    async handleDeleteCompany(company) {
+      try {
+        await this.$confirm('删除公司将同时删除其下所有部门，是否继续？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+        
+        await del(`/api/device/companies/${company.id}/`)
+        this.$message.success('删除成功')
+        await this.fetchCompanyList()
+        await this.fetchAllTrees()
+      } catch (error) {
+        if (error !== 'cancel') {
+          this.$message.error('删除失败：' + error.message)
+        }
+      }
+    },
+    async submitCompanyForm() {
+      try {
+        await this.$refs.companyFormRef.validate()
+        if (this.companyForm.id) {
+          await put(`/api/device/companies/${this.companyForm.id}/`, this.companyForm)
+          this.$message.success('修改成功')
+        } else {
+          await post('/api/device/companies/', this.companyForm)
+          this.$message.success('添加成功')
+        }
+        this.companyFormDialogVisible = false
+        await this.fetchCompanyList()
+        await this.fetchAllTrees()
+      } catch (error) {
+        this.$message.error('操作失败：' + error.message)
+      }
+    },
+    // 部门管理相关方法
+    async handleManageDepartments(company) {
+      this.currentCompany = company
+      await this.fetchDepartmentList(company.id)
+      this.departmentDialogVisible = true
+    },
+    async fetchDepartmentList(companyId) {
+      try {
+        const response = await get(`/api/device/departments/by_company/?company_id=${companyId}`)
+        this.departmentList = response.data
+      } catch (error) {
+        this.$message.error('获取部门列表失败：' + error.message)
+      }
+    },
+    handleAddDepartment() {
+      this.departmentForm = {
+        id: null,
+        name: '',
+        code: '',
+        description: '',
+        company: this.currentCompany.id
+      }
+      this.departmentFormDialogVisible = true
+    },
+    handleEditDepartment(department) {
+      this.departmentForm = { ...department }
+      this.departmentFormDialogVisible = true
+    },
+    async handleDeleteDepartment(department) {
+      try {
+        await this.$confirm('确定要删除该部门吗？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+        
+        await del(`/api/device/departments/${department.id}/`)
+        this.$message.success('删除成功')
+        await this.fetchDepartmentList(this.currentCompany.id)
+        await this.fetchAllTrees()
+      } catch (error) {
+        if (error !== 'cancel') {
+          this.$message.error('删除失败：' + error.message)
+        }
+      }
+    },
+    async submitDepartmentForm() {
+      try {
+        await this.$refs.departmentFormRef.validate()
+        if (this.departmentForm.id) {
+          await put(`/api/device/departments/${this.departmentForm.id}/`, this.departmentForm)
+          this.$message.success('修改成功')
+        } else {
+          await post('/api/device/departments/', this.departmentForm)
+          this.$message.success('添加成功')
+        }
+        this.departmentFormDialogVisible = false
+        await this.fetchDepartmentList(this.currentCompany.id)
+        await this.fetchAllTrees()
+      } catch (error) {
+        this.$message.error('操作失败：' + error.message)
+      }
+    },
   }
 }
 </script>
@@ -1496,15 +2114,8 @@ export default {
     margin-bottom: 12px;
     border-bottom: 1px solid var(--border-color);
     display: flex;
-    align-items: center;
+    align-items: flex-start;  // 修改为flex-start以便垂直对齐
     gap: 8px;
-    
-    .device-name {
-      flex: 1;
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--text-color);
-    }
   }
   
   .device-content {
@@ -1766,5 +2377,54 @@ export default {
   color: #909399;
   margin-top: 5px;
   margin-left: 2px;
+}
+
+.management-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+  
+  .add-button {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    
+    i {
+      margin-right: 2px;
+    }
+  }
+}
+
+.operation-buttons {
+  display: flex;
+  gap: 8px;  // 按钮之间的间距
+  
+  .el-button {
+    display: flex;
+    align-items: center;
+    padding: 5px 12px;
+    
+    i {
+      margin-right: 3px;
+    }
+  }
+}
+
+.device-title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  
+  .device-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-color);
+  }
+  
+  .device-uuid {
+    font-size: 12px;
+    color: #909399;
+    margin-top: 2px;
+  }
 }
 </style>
