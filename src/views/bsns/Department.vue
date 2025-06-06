@@ -182,7 +182,7 @@
       <el-col :span="19">
         <el-row :gutter="16">
           <el-col :xs="24" :sm="12" :md="8" :lg="6" v-for="device in deviceList" :key="device.id">
-            <el-card class="device-card" :class="{'running': device.status === 'running'}">
+            <el-card class="device-card" :class="{'running': device.status === 'running', 'offline': !device.actual_online_status}">
               <div class="device-header">
                 <el-checkbox 
                   v-model="device.selected"
@@ -198,6 +198,18 @@
                   </span>
                   <span v-if="showDeviceId" class="device-uuid">
                     UUID: {{ device.uuid_info ? device.uuid_info.uuid : '无' }}
+                  </span>
+                  <span class="device-status-info">
+                    <el-tag size="small" :type="device.actual_online_status ? 'success' : 'danger'">
+                      {{ device.actual_online_status ? '在线' : '离线' }}
+                    </el-tag>
+                    <el-tooltip effect="dark" placement="top">
+                      <template #content>
+                        <div>设备状态: {{ device.online_status ? '在线' : '离线' }}</div>
+                        <div>网关状态: {{ device.gateway_online ? '在线' : '离线' }}</div>
+                      </template>
+                      <i class="el-icon-info-filled" style="margin-left: 5px; cursor: pointer;"></i>
+                    </el-tooltip>
                   </span>
                 </div>
                 <el-dropdown trigger="click" @command="command => handleCommand(command, device)">
@@ -2108,6 +2120,10 @@ export default {
   &.running {
     border: 2px solid var(--primary-color) !important;
   }
+
+  &.offline {
+    background-color: #f5f5f5 !important;  /* 浅色主题下的灰色背景 */
+  }
   
   .device-header {
     padding-bottom: 12px;
@@ -2247,6 +2263,12 @@ export default {
           }
         }
       }
+    }
+  }
+
+  .device-card {
+    &.offline {
+      background-color: #363636 !important;  /* 深色主题下的灰色背景 */
     }
   }
 }
@@ -2425,6 +2447,27 @@ export default {
     font-size: 12px;
     color: #909399;
     margin-top: 2px;
+  }
+
+  .device-status-info {
+    margin-top: 5px;
+    display: flex;
+    align-items: center;
+    
+    .el-tag {
+      padding: 0 8px;
+      height: 20px;
+      line-height: 18px;
+    }
+    
+    .el-icon-info-filled {
+      color: #909399;
+      font-size: 14px;
+      
+      &:hover {
+        color: var(--primary-color);
+      }
+    }
   }
 }
 </style>
