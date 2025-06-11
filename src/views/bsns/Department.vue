@@ -52,12 +52,26 @@
         导出所有设备信息
         </el-button>
       </div>
-      <el-switch
-        v-model="isDarkTheme"
-        active-text="深色主题"
-        inactive-text="浅色主题"
-        class="theme-switch"
-      />
+      <div class="right-controls">
+        <div class="refresh-info">
+          <span v-if="lastRefreshTime" class="time">
+            最后刷新: {{ new Date(lastRefreshTime).toLocaleTimeString() }}
+          </span>
+          <el-button
+            type="text"
+            :icon="isAutoRefresh ? 'el-icon-video-pause' : 'el-icon-video-play'"
+            @click="toggleAutoRefresh"
+          >
+            {{ isAutoRefresh ? '关闭自动刷新' : '开启自动刷新' }}
+          </el-button>
+        </div>
+        <el-switch
+          v-model="isDarkTheme"
+          active-text="深色主题"
+          inactive-text="浅色主题"
+          class="theme-switch"
+        />
+      </div>
     </div>
 
     <el-row :gutter="20" class="main-content">
@@ -799,11 +813,14 @@ export default {
   data() {
     return {
       isDarkTheme: true,
-      showDeviceId: false,  // 添加显示设备编号的状态控制
+      showDeviceId: false,
       currentTreeType: 'building',
       buildingTreeData: [],
       gatewayTreeData: [],
       companyTreeData: [],
+      refreshInterval: null,  // 用于存储定时器
+      isAutoRefresh: true,    // 控制自动刷新开关
+      lastRefreshTime: null,  // 记录最后刷新时间
       listQuery: {
         name: '',
         status: ''
@@ -1005,8 +1022,89 @@ export default {
   created() {
     this.fetchAllTrees()
     this.fetchDeviceList()
+    this.startAutoRefresh()
+  },
+  beforeDestroy() {
+    this.stopAutoRefresh()
   },
   methods: {
+    toggleAutoRefresh() {
+      this.isAutoRefresh = !this.isAutoRefresh
+      if (this.isAutoRefresh) {
+        this.startAutoRefresh()
+        this.$message.success('已开启自动刷新')
+      } else {
+        this.stopAutoRefresh()
+        this.$message.success('已关闭自动刷新')
+      }
+    },
+
+    startAutoRefresh() {
+      if (this.refreshInterval) {
+        clearInterval(this.refreshInterval)
+      }
+      
+      // 只在自动刷新开启时创建定时器
+      if (this.isAutoRefresh) {
+        this.refreshInterval = setInterval(() => {
+          // 检查页面是否在活动标签页中
+          if (document.visibilityState === 'visible') {
+            this.refreshDeviceList()
+          }
+        }, 10000)
+      }
+    },
+    
+    stopAutoRefresh() {
+      if (this.refreshInterval) {
+        clearInterval(this.refreshInterval)
+        this.refreshInterval = null
+      }
+    },
+    
+    async refreshDeviceList() {
+      try {
+        // 构建查询参数，保持当前筛选条件
+        const params = {
+          name: this.listQuery.name,
+          status: this.listQuery.status
+        }
+        
+        // 获取新数据
+        const response = await get(`/api/device/filter/?${new URLSearchParams(params).toString()}`)
+        
+        // 保存滚动位置
+        const container = this.$el.querySelector('.el-col:last-child')
+        const scrollTop = container ? container.scrollTop : 0
+        
+        // 智能更新设备列表
+        const newDevices = response.data
+        this.deviceList = this.deviceList.map(oldDevice => {
+          const newDevice = newDevices.find(d => d.id === oldDevice.id)
+          if (newDevice) {
+            // 保持选中状态和其他用户交互状态
+            return {
+              ...newDevice,
+              selected: oldDevice.selected
+            }
+          }
+          return oldDevice
+        })
+        
+        // 恢复滚动位置
+        this.$nextTick(() => {
+          if (container) {
+            container.scrollTop = scrollTop
+          }
+        })
+        
+        this.lastRefreshTime = new Date()
+      } catch (error) {
+        console.error('刷新设备列表失败:', error)
+        // 出错时不显示错误提示，避免打扰用户
+      }
+    },
+    
     handleFilter() {
       // 重置其他查询条件
       this.selectedBuilding = null;
@@ -2004,6 +2102,37 @@ export default {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  
+  .right-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  
+  .refresh-info {
+    font-size: 12px;
+    color: #909399;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    
+    .time {
+      color: var(--text-color);
+    }
+    
+    .el-button {
+      padding: 0;
+      font-size: 13px;
+      
+      &:hover {
+        color: var(--primary-color);
+      }
+      
+      [class^="el-icon-"] {
+        margin-right: 4px;
+      }
+    }
+  }
 }
 
 .theme-switch {
@@ -2012,8 +2141,40 @@ export default {
 
 .main-content {
   margin-top: 20px;
-  min-height: calc(100vh - 120px);
+  height: calc(100vh - 120px);  /* 改为固定高度 */
   display: flex;
+  
+  .el-col {
+    height: 100%;  /* 让列容器占满高度 */
+    
+    &:last-child {  /* 右侧设备卡片容器 */
+      overflow-y: auto;  /* 启用垂直滚动 */
+      padding-right: 8px;  /* 为滚动条预留空间 */
+      
+      /* 自定义滚动条样式 */
+      &::-webkit-scrollbar {
+        width: 6px;
+        background-color: transparent;
+      }
+      
+      &::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      
+      &::-webkit-scrollbar-thumb {
+        background-color: rgba(144, 147, 153, 0.3);
+        border-radius: 3px;
+      }
+      
+      &::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(144, 147, 153, 0.5);
+      }
+      
+      .el-row {
+        margin-right: 0 !important;  /* 防止滚动条出现时的抖动 */
+      }
+    }
+  }
 }
 
 .org-structure {
@@ -2064,40 +2225,74 @@ export default {
     flex: 1;
     padding: 12px;
     overflow-y: auto;
+    
+    &::-webkit-scrollbar {
+      width: 6px !important;
+    }
+    
+    &::-webkit-scrollbar-track {
+      background: transparent !important;
+    }
+    
+    &::-webkit-scrollbar-thumb {
+      background-color: rgba(144, 147, 153, 0.3) !important;
+      border-radius: 3px !important;
+    }
+    
+    &::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(144, 147, 153, 0.5) !important;
+    }
+  }
+}
 
-    .custom-tree {
+.custom-tree {
+  background-color: transparent;
+  color: var(--text-color);
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  max-height: calc(100vh - 200px); /* 设置最大高度，减去头部和其他元素的高度 */
+  overflow-y: auto; /* 启用垂直滚动 */
+  
+  /* 自定义滚动条样式 */
+  &::-webkit-scrollbar {
+    width: 6px;
+    background-color: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background-color: rgba(144, 147, 153, 0.3);
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(144, 147, 153, 0.5);
+  }
+  
+  :deep(.el-tree-node) {
+    margin: 4px 0;
+    
+    .el-tree-node__content {
+      height: 36px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 0 8px;
+      transition: all 0.3s;
+      font-size: 14px;
       background-color: transparent;
-      color: var(--text-color);
-      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
       
-      :deep(.el-tree-node) {
-        margin: 4px 0;
+      &:hover {
+        background-color: transparent;
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+      }
+      
+      &.is-current {
+        background-color: transparent;
+        border: 2px solid var(--primary-color);
+        color: var(--primary-color);
+        font-weight: bold;
         
-        .el-tree-node__content {
-          height: 36px;
-          border: 1px solid var(--border-color);
-          border-radius: 4px;
-          padding: 0 8px;
-          transition: all 0.3s;
-          font-size: 14px;
-          background-color: transparent;
-          
-          &:hover {
-            background-color: transparent;
-            border-color: var(--primary-color);
-            color: var(--primary-color);
-          }
-          
-          &.is-current {
-            background-color: transparent;
-            border: 2px solid var(--primary-color);
-            color: var(--primary-color);
-            font-weight: bold;
-            
-            .custom-tree-node {
-              color: var(--primary-color);
-            }
-          }
+        .custom-tree-node {
+          color: var(--primary-color);
         }
       }
     }
