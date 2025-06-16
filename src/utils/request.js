@@ -2,11 +2,9 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 
-const defaultBaseURL = '/';
-
 // 创建 axios 实例
 const service = axios.create({
-  baseURL: process.env.VUE_APP_BASE_API || defaultBaseURL, // API 的基础URL
+  baseURL: '/', // API 的基础URL
   timeout: 5000, // 请求超时时间
   headers: {
     'Content-Type': 'application/json'

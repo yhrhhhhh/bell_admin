@@ -1,13 +1,9 @@
 // 引入axios
 import axios from 'axios';
 
-let baseUrl = '/';
-
 // 创建axios实例
 const httpService = axios.create({
-    // url前缀-'http:xxx.xxx'
-    // baseURL: process.env.BASE_API, // 需自定义
-    baseURL:baseUrl,
+    baseURL:'/',
     // 请求超时时间
     timeout: 10000 // 增加超时时间到10秒
 });
