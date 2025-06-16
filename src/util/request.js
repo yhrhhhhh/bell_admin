@@ -1,9 +1,7 @@
 // 引入axios
 import axios from 'axios';
 
-
-const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-let baseUrl = isLocalhost ? 'http://localhost:8000/' : 'http://192.168.20.109:8000/';
+let baseUrl = '/';
 
 // 创建axios实例
 const httpService = axios.create({

@@ -2,11 +2,7 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 
-// 判断当前环境
-const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-// 使用环境变量中的API地址
-const defaultBaseURL = process.env.VUE_APP_API_URL || 'http://47.99.51.76';
+const defaultBaseURL = '/';
 
 // 创建 axios 实例
 const service = axios.create({
