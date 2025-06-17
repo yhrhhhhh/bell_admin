@@ -3,6 +3,8 @@ import axios from 'axios';
 
 // 创建axios实例
 const httpService = axios.create({
+    // url前缀-'http:xxx.xxx'
+    // baseURL: process.env.BASE_API, // 需自定义
     baseURL:'/',
     // 请求超时时间
     timeout: 10000 // 增加超时时间到10秒
@@ -165,7 +167,7 @@ export function fileUpload(url, params = {}) {
 }
 
 export function getServerUrl(){
-    return baseUrl;
+    return '/';
 }
 
 export default {
