@@ -1,6 +1,9 @@
 <template>
   <div class="navbar">
-    <Breadcrumb/>
+    <div class="left-menu">
+      <slot name="before-breadcrumb"></slot>
+      <Breadcrumb/>
+    </div>
     <div class="navbar-right">
       <Avatar/>
     </div>
@@ -21,17 +24,25 @@ import Avatar from './components/avatar'
   overflow: hidden;
   background-color: #F5F5F5;
   box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
-  padding: 0 16px;
+  padding: 0;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   box-sizing: border-box;
   position: relative;
+
+  .left-menu {
+    display: flex;
+    align-items: center;
+    height: 100%;
+  }
 
   .navbar-right {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    padding-right: 16px;
 
     ::v-deep .navbar-item {
       display: inline-block;

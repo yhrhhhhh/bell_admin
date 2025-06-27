@@ -873,15 +873,6 @@ export default {
         ],
         uuid_value: [
           { required: true, message: '请输入设备UUID', trigger: 'blur' }
-        ],
-        floor_id: [
-          { required: true, message: '请选择所在楼层', trigger: 'blur' }
-        ],
-        company_id: [
-          { required: true, message: '请选择所属公司', trigger: 'blur' }
-        ],
-        department_id: [
-          { required: true, message: '请选择所属部门', trigger: 'blur' }
         ]
       },
       fanSpeedMap: {
@@ -925,15 +916,6 @@ export default {
         ],
         uuid_value: [
           { required: true, message: '请输入设备UUID', trigger: 'blur' }
-        ],
-        floor_id: [
-          { required: true, message: '请选择所在楼层', trigger: 'change' }
-        ],
-        company_id: [
-          { required: true, message: '请选择所属公司', trigger: 'change' }
-        ],
-        department_id: [
-          { required: true, message: '请选择所属部门', trigger: 'change' }
         ]
       },
       uuidOptions: [],
@@ -1424,7 +1406,7 @@ export default {
         }
         
         // 验证必填字段
-        const requiredFields = ['name', 'device_id', 'uuid', 'company', 'department']
+        const requiredFields = ['name', 'device_id', 'uuid']
         for (const field of requiredFields) {
           if (!deviceData[field] && deviceData[field] !== 0) {
             this.$message.error(`请填写${field}字段`)
@@ -1704,7 +1686,7 @@ export default {
         }
         
         // 验证必填字段
-        const requiredFields = ['name', 'device_id', 'uuid', 'company', 'department', 'floor']
+        const requiredFields = ['name', 'device_id', 'uuid']
         for (const field of requiredFields) {
           if (!deviceData[field] && deviceData[field] !== 0) {
             this.$message.error(`请填写${field}字段`)

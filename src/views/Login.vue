@@ -55,6 +55,7 @@
   import { encrypt, decrypt } from "@/util/jsencrypt";
   import router from '@/router'
   import store from '@/store'
+  import { useRoute } from 'vue-router'
 
 
   const loginForm=ref({
@@ -69,6 +70,8 @@
     username: [{required: true, trigger: "blur", message: "请输入您的账号"}],
     password: [{required: true, trigger: "blur", message: "请输入您的密码"}]
   };
+
+  const route = useRoute()
 
   const handleLogin = async () => {
     try {
@@ -99,11 +102,20 @@
           Cookies.remove("rememberMe")
         }
         
-        store.commit('ADD_TABS', {
-          name: '外机控制面板',
-          path: '/bsns/department'
-        })
-        router.push('/bsns/department')
+        // 获取重定向路径
+        const redirect = route.query.redirect
+        
+        // 如果有重定向路径，优先跳转到该路径
+        if (redirect) {
+          router.push(redirect)
+        } else {
+          // 否则跳转到默认页面
+          store.commit('ADD_TABS', {
+            name: '外机控制面板',
+            path: '/bsns/department'
+          })
+          router.push('/bsns/department')
+        }
       } else {
         ElMessage.error(data.info || '登录失败')
       }
