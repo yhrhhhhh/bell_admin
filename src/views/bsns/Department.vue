@@ -38,6 +38,7 @@
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="addDevice">添加设备</el-dropdown-item>
+              <el-dropdown-item command="gatewayManage">网关管理</el-dropdown-item>
               <el-dropdown-item command="buildingManage">建筑和楼层管理</el-dropdown-item>
               <el-dropdown-item command="companyManage">公司和部门管理</el-dropdown-item>
             </el-dropdown-menu>
@@ -795,6 +796,67 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 网关管理对话框 -->
+    <el-dialog
+      v-model="gatewayDialogVisible"
+      title="网关管理"
+      width="60%"
+    >
+      <div class="gateway-management">
+        <div class="management-header">
+          <el-button type="primary" @click="handleAddGateway" class="add-button">
+            <i class="el-icon-plus"></i> 添加网关
+          </el-button>
+        </div>
+        <el-table :data="gatewayList" style="width: 100%">
+          <el-table-column prop="uuid" label="UUID"/>
+          <el-table-column prop="subscribe_topic" label="订阅主题"/>
+          <el-table-column prop="publish_topic" label="发布主题"/>
+          <el-table-column prop="description" label="描述"/>
+          <el-table-column label="操作" width="280">
+            <template #default="scope">
+              <div class="operation-buttons">
+                <el-button size="small" type="primary" @click="handleEditGateway(scope.row)">
+                  <i class="el-icon-edit"></i> 编辑
+                </el-button>
+                <el-button size="small" type="danger" @click="handleDeleteGateway(scope.row.uuid)">
+                  <i class="el-icon-delete"></i> 删除
+                </el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-dialog>
+
+    <!-- 添加/编辑网关对话框 -->
+    <el-dialog
+      v-model="gatewayFormDialogVisible"
+      :title="gatewayForm.uuid ? '编辑网关' : '添加网关'"
+      width="40%"
+    >
+      <el-form :model="gatewayForm" :rules="gatewayRules" ref="gatewayFormRef" label-width="100px">
+        <el-form-item label="UUID" prop="uuid">
+          <el-input v-model="gatewayForm.uuid" placeholder="请输入UUID" :disabled="!!gatewayForm.uuid"/>
+        </el-form-item>
+        <el-form-item label="订阅主题" prop="subscribe_topic">
+          <el-input v-model="gatewayForm.subscribe_topic" placeholder="请输入订阅主题"/>
+        </el-form-item>
+        <el-form-item label="发布主题" prop="publish_topic">
+          <el-input v-model="gatewayForm.publish_topic" placeholder="请输入发布主题"/>
+        </el-form-item>
+        <el-form-item label="描述" prop="description">
+          <el-input type="textarea" v-model="gatewayForm.description" placeholder="请输入描述"/>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="gatewayFormDialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="handleGatewaySubmit">确 定</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -981,7 +1043,27 @@ export default {
       departmentRules: {
         name: [{ required: true, message: '请输入部门名称', trigger: 'blur' }],
         code: [{ required: true, message: '请输入部门编码', trigger: 'blur' }]
-      }
+      },
+      gatewayDialogVisible: false,
+      gatewayForm: {
+        uuid: '',
+        subscribe_topic: '',
+        publish_topic: '',
+        description: ''
+      },
+      gatewayRules: {
+        uuid: [
+          { required: true, message: '请输入UUID', trigger: 'blur' }
+        ],
+        subscribe_topic: [
+          { required: true, message: '请输入订阅Topic', trigger: 'blur' }
+        ],
+        publish_topic: [
+          { required: true, message: '请输入发布Topic', trigger: 'blur' }
+        ]
+      },
+      gatewayList: [],
+      gatewayFormDialogVisible: false
     }
   },
   computed: {
@@ -1785,16 +1867,89 @@ export default {
     },
     // 设备管理下拉菜单处理
     handleManagementCommand(command) {
-      switch (command) {
-        case 'addDevice':
-          this.handleAdd()
-          break
-        case 'buildingManage':
-          this.showBuildingManagement()
-          break
-        case 'companyManage':
-          this.showCompanyManagement()
-          break
+      if (command === 'addDevice') {
+        this.handleAdd()
+      } else if (command === 'gatewayManage') {
+        this.handleGatewayManage()
+      } else if (command === 'buildingManage') {
+        this.handleBuildingManage()
+      } else if (command === 'companyManage') {
+        this.handleCompanyManage()
+      }
+    },
+    async handleGatewayManage() {
+      await this.fetchGatewayList()
+      this.gatewayDialogVisible = true
+    },
+    async fetchGatewayList() {
+      try {
+        const response = await get('/api/device/topic/uuid-list/')
+        if (response.data.code === 200) {
+          this.gatewayList = response.data.data
+        } else {
+          this.$message.error('获取网关列表失败')
+        }
+      } catch (error) {
+        this.$message.error('获取网关列表失败：' + error.message)
+      }
+    },
+    handleAddGateway() {
+      this.gatewayForm = {
+        uuid: '',
+        subscribe_topic: '',
+        publish_topic: '',
+        description: ''
+      }
+      this.$refs.gatewayFormRef && this.$refs.gatewayFormRef.resetFields()
+      this.gatewayFormDialogVisible = true  // 打开添加网关对话框
+    },
+    handleEditGateway(gateway) {
+      // 将当前网关数据填充到表单中
+      this.gatewayForm = {
+        uuid: gateway.uuid,
+        subscribe_topic: gateway.subscribe_topic,
+        publish_topic: gateway.publish_topic,
+        description: gateway.description || ''
+      }
+      this.gatewayFormDialogVisible = true  // 打开编辑对话框
+    },
+    async handleDeleteGateway(uuid) {
+      try {
+        await this.$confirm('删除网关将同时删除其下所有关联设备，是否继续？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+        
+        const response = await del(`/api/device/topic/delete/${uuid}/`)
+        if (response.status === 200) {
+          this.$message.success(response.data.message)  // 使用后端返回的消息，包含删除的设备数量
+          await this.fetchGatewayList()
+          await this.fetchAllTrees()  // 刷新树形结构
+        } else {
+          this.$message.error(response.data.message || '删除失败')
+        }
+      } catch (error) {
+        if (error !== 'cancel') {
+          this.$message.error('删除失败：' + error.message)
+        }
+      }
+    },
+    async handleGatewaySubmit() {
+      try {
+        await this.$refs.gatewayFormRef.validate()
+        
+        const response = await post('/api/device/topic/create_or_update/', this.gatewayForm)
+        
+        if (response.data.success) {
+          this.$message.success(response.data.created ? '添加成功' : '更新成功')
+          this.gatewayFormDialogVisible = false  // 直接关闭对话框
+          await this.fetchGatewayList()
+        } else {
+          this.$message.error(response.data.message || '操作失败')
+        }
+      } catch (error) {
+        this.$message.error('操作失败：' + error.message)
       }
     },
     // 建筑管理相关方法
@@ -2645,6 +2800,45 @@ export default {
         color: var(--primary-color);
       }
     }
+  }
+}
+
+.gateway-management {
+  .management-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 20px;
+    
+    .add-button {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      
+      i {
+        margin-right: 2px;
+      }
+    }
+  }
+}
+
+.gateway-form-dialog {
+  :deep(.el-dialog__body) {
+    padding-top: 20px;
+  }
+  
+  :deep(.el-dialog__footer) {
+    .dialog-footer {
+      display: flex;
+      justify-content: center;
+      
+      .el-button {
+        min-width: 100px;
+      }
+    }
+  }
+  
+  :deep(.el-form-item) {
+    margin-bottom: 22px;
   }
 }
 </style>
