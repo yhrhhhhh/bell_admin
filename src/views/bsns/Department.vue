@@ -2226,7 +2226,6 @@ export default {
   }
 }
 </script>
-
 <style lang="scss" scoped>
 .app-container {
   min-height: 100vh;
@@ -2842,3 +2841,4 @@ export default {
   }
 }
 </style>
+

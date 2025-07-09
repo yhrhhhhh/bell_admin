@@ -1,0 +1,92 @@
+@import './variables.scss';
+@import './mixins.scss';
+@import './mobile.scss';
+
+// 全局样式
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+// 响应式容器
+.container {
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 $spacing-md;
+  
+  @include respond-to('lg') {
+    max-width: 1140px;
+  }
+  
+  @include respond-to('md') {
+    max-width: 960px;
+  }
+  
+  @include respond-to('sm') {
+    max-width: 100%;
+    padding: 0 $spacing-sm;
+  }
+}
+
+// 通用间距类
+.mt-1 { margin-top: $spacing-xs; }
+.mt-2 { margin-top: $spacing-sm; }
+.mt-3 { margin-top: $spacing-md; }
+.mt-4 { margin-top: $spacing-lg; }
+.mt-5 { margin-top: $spacing-xl; }
+
+.mb-1 { margin-bottom: $spacing-xs; }
+.mb-2 { margin-bottom: $spacing-sm; }
+.mb-3 { margin-bottom: $spacing-md; }
+.mb-4 { margin-bottom: $spacing-lg; }
+.mb-5 { margin-bottom: $spacing-xl; }
+
+.mx-1 { margin-left: $spacing-xs; margin-right: $spacing-xs; }
+.mx-2 { margin-left: $spacing-sm; margin-right: $spacing-sm; }
+.mx-3 { margin-left: $spacing-md; margin-right: $spacing-md; }
+.mx-4 { margin-left: $spacing-lg; margin-right: $spacing-lg; }
+.mx-5 { margin-left: $spacing-xl; margin-right: $spacing-xl; }
+
+.my-1 { margin-top: $spacing-xs; margin-bottom: $spacing-xs; }
+.my-2 { margin-top: $spacing-sm; margin-bottom: $spacing-sm; }
+.my-3 { margin-top: $spacing-md; margin-bottom: $spacing-md; }
+.my-4 { margin-top: $spacing-lg; margin-bottom: $spacing-lg; }
+.my-5 { margin-top: $spacing-xl; margin-bottom: $spacing-xl; }
+
+// 通用布局类
+.flex { display: flex; }
+.flex-column { flex-direction: column; }
+.flex-wrap { flex-wrap: wrap; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.align-center { align-items: center; }
+.align-start { align-items: flex-start; }
+.align-end { align-items: flex-end; }
+
+// 文本工具类
+.text-center { text-align: center; }
+.text-left { text-align: left; }
+.text-right { text-align: right; }
+.text-bold { font-weight: bold; }
+.text-normal { font-weight: normal; }
+.text-italic { font-style: italic; }
+
+// 响应式隐藏类
+.hidden-sm {
+  @include respond-to('sm') {
+    display: none !important;
+  }
+}
+
+.hidden-md {
+  @include respond-to('md') {
+    display: none !important;
+  }
+}
+
+.hidden-lg {
+  @include respond-to('lg') {
+    display: none !important;
+  }
+}
